@@ -10,7 +10,10 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -19,19 +22,34 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Basic route for testing
 app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to Student Result Analysis System API' });
+  res.json({ 
+    message: '🎓 Student Result Analysis System API',
+    version: '1.0.0',
+    endpoints: {
+      auth: '/api/auth',
+      students: '/api/students',
+      teachers: '/api/teachers',
+      results: '/api/results'
+    }
+  });
 });
 
-// Import routes (we'll create these later)
-// const authRoutes = require('./routes/authRoutes');
-// const studentRoutes = require('./routes/studentRoutes');
-// app.use('/api/auth', authRoutes);
-// app.use('/api/students', studentRoutes);
+// API Routes
+const authRoutes = require('./routes/authRoutes');
+app.use('/api/auth', authRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
+  res.status(500).json({ 
+    error: 'Something went wrong!',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
 });
 
 // Set port
@@ -39,6 +57,7 @@ const PORT = process.env.PORT || 5000;
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📡 API: http://localhost:${PORT}`);
+  console.log(`🎯 Ready to accept requests!`);
 });
