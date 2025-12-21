@@ -21,19 +21,20 @@ const Login = () => {
     }
   }, [user, navigate]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
+// In handleSubmit function in Login.jsx
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setIsLoading(true);
+  setError(null);
 
-    const result = await login(email, password);
-    setIsLoading(false);
+  const result = await login(email, password);
+  setIsLoading(false);
 
-    if (result.success) {
-      navigate('/dashboard');
-    }
-  };
-
+  if (result.success) {
+    // Redirect to /dashboard which will handle role-based redirect
+    navigate('/dashboard');
+  }
+};
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: {
