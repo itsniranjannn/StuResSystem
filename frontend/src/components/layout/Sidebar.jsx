@@ -1,145 +1,98 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { NavLink } from 'react-router-dom';
 import { 
-  LayoutDashboard, User, FileText, Users, GraduationCap,
-  BookOpen, Trophy, Bell, Settings, BarChart3, LineChart,
-  UserCog, Edit, LogOut, ChevronLeft, ChevronRight,
-  Home, School, Database, Shield
+  LayoutDashboard, 
+  Users, 
+  BookOpen, 
+  Award, 
+  BarChart3,
+  User,
+  Settings,
+  LogOut,
+  GraduationCap
 } from 'lucide-react';
-import { useAuth, getNavigationByRole } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
-const iconComponents = {
-  LayoutDashboard, User, FileText, Users, GraduationCap,
-  BookOpen, Trophy, Bell, Settings, BarChart3, LineChart,
-  UserCog, Edit, Home, School, Database, Shield
-};
+const Sidebar = () => {
+  const { user, logout } = useAuth();
 
-const Sidebar = ({ isOpen, onClose }) => {
-  const { user, logout, toggleSidebar } = useAuth();
-  
-  if (!user) return null;
-  
-  const navigation = getNavigationByRole(user.role);
-  
-  const sidebarVariants = {
-    open: { x: 0 },
-    closed: { x: '-100%' }
-  };
+  const navItems = [
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/students', icon: Users, label: 'Students' },
+    { to: '/subjects', icon: BookOpen, label: 'Subjects' },
+    { to: '/results', icon: Award, label: 'Results' },
+    { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+    { to: '/profile', icon: User, label: 'Profile' },
+    { to: '/settings', icon: Settings, label: 'Settings' },
+  ];
 
   return (
-    <>
-      {/* Overlay for mobile */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Sidebar */}
-      <motion.aside
-        variants={sidebarVariants}
-        initial="closed"
-        animate={isOpen ? "open" : "closed"}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="fixed lg:static inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-white to-neutral-50 shadow-2xl border-r border-neutral-200 flex flex-col transform lg:translate-x-0"
-      >
-        {/* Logo */}
-        <div className="p-6 border-b border-neutral-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl shadow-lg">
-                <School className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-neutral-900">Result System</h2>
-                <p className="text-xs text-neutral-600">TU BCA</p>
-              </div>
-            </div>
-            <button
-              onClick={toggleSidebar}
-              className="lg:hidden p-2 hover:bg-neutral-100 rounded-lg transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5 text-neutral-600" />
-            </button>
+    <motion.aside
+      initial={{ x: -300 }}
+      animate={{ x: 0 }}
+      className="fixed left-0 top-0 h-screen w-64 bg-gradient-to-b from-primary-900 to-primary-800 text-white shadow-xl"
+    >
+      {/* Logo */}
+      <div className="p-6 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-white/10 rounded-lg">
+            <GraduationCap className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="font-bold text-lg">Student Result</h1>
+            <p className="text-xs text-white/60">Analysis System</p>
           </div>
         </div>
+      </div>
 
-        {/* User Profile */}
-        <div className="p-6 border-b border-neutral-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-primary-400 to-secondary-400 rounded-xl flex items-center justify-center shadow-md">
-              <span className="text-white font-bold text-lg">
-                {user?.name?.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-neutral-900 truncate">{user?.name}</p>
-              <p className="text-sm text-neutral-600 capitalize">{user?.role}</p>
-              {user?.roll_no && (
-                <p className="text-xs text-neutral-500 truncate">{user.roll_no}</p>
-              )}
-            </div>
+      {/* User Info */}
+      <div className="p-4 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary-400 to-secondary-400 flex items-center justify-center">
+            <span className="font-bold">{user?.name?.charAt(0) || 'U'}</span>
+          </div>
+          <div>
+            <p className="font-medium">{user?.name || 'User'}</p>
+            <p className="text-xs text-white/60 capitalize">{user?.role || 'Student'}</p>
           </div>
         </div>
+      </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {navigation.map((item, index) => {
-            const Icon = iconComponents[item.icon];
-            return (
+      {/* Navigation */}
+      <nav className="p-4">
+        <ul className="space-y-2">
+          {navItems.map((item) => (
+            <li key={item.to}>
               <NavLink
-                key={index}
-                to={item.path}
-                onClick={onClose}
+                to={item.to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+                  `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                     isActive
-                      ? 'bg-gradient-to-r from-primary-50 to-primary-100 text-primary-700 border border-primary-200 shadow-sm'
-                      : 'text-neutral-700 hover:text-primary-700 hover:bg-primary-50'
+                      ? 'bg-white/10 text-white'
+                      : 'text-white/70 hover:bg-white/5 hover:text-white'
                   }`
                 }
               >
-                {Icon && (
-                  <Icon className={`w-5 h-5 transition-colors ${
-                    window.location.pathname === item.path
-                      ? 'text-primary-600'
-                      : 'text-neutral-400 group-hover:text-primary-500'
-                  }`} />
-                )}
-                <span className="font-medium">{item.label}</span>
+                <item.icon className="w-5 h-5" />
+                <span>{item.label}</span>
               </NavLink>
-            );
-          })}
-        </nav>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
-        {/* System Info */}
-        <div className="p-4 border-t border-neutral-200">
-          <div className="bg-gradient-to-r from-neutral-50 to-white rounded-xl p-4 border border-neutral-200">
-            <div className="flex items-center gap-2 mb-2">
-              <Database className="w-4 h-4 text-primary-600" />
-              <span className="text-xs font-medium text-neutral-700">System Status</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs text-neutral-600">All systems operational</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Logout */}
-        <div className="p-4 border-t border-neutral-200">
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-danger-600 hover:bg-danger-50 rounded-xl transition-all duration-200 group"
-          >
-            <LogOut className="w-5 h-5 text-danger-500 group-hover:text-danger-600" />
-            <span className="font-medium">Logout</span>
-          </button>
-        </div>
-      </motion.aside>
-    </>
+      {/* Logout Button */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+        <button
+          onClick={logout}
+          className="flex items-center gap-3 w-full px-4 py-3 text-white/70 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+        >
+          <LogOut className="w-5 h-5" />
+          <span>Logout</span>
+        </button>
+      </div>
+    </motion.aside>
   );
 };
 
