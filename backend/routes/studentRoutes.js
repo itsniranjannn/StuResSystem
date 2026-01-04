@@ -1,20 +1,31 @@
 const express = require('express');
 const router = express.Router();
-const studentController = require('../controllers/studentController');
-const { authMiddleware, requireRole } = require('../middleware/authMiddleware');
+const authMiddleware = require('../middleware/authMiddleware');
 
-// Public routes (none)
+// Mock student controller for now
+const studentController = {
+  getAllStudents: async (req, res) => {
+    try {
+      // This will be implemented later
+      res.json({
+        success: true,
+        message: 'Students fetched successfully',
+        data: [
+          { id: 1, name: 'John Doe', rollNo: 'BCA24001', semester: 6, gpa: 3.8 },
+          { id: 2, name: 'Jane Smith', rollNo: 'BCA24002', semester: 6, gpa: 3.6 },
+          { id: 3, name: 'Bob Johnson', rollNo: 'BCA24003', semester: 6, gpa: 3.9 },
+        ]
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+};
 
-// Protected routes - Admin and Teacher access
-router.get('/', authMiddleware, requireRole('admin', 'teacher'), studentController.getAllStudents);
-router.get('/:id', authMiddleware, requireRole('admin', 'teacher'), studentController.getStudentById);
-router.post('/', authMiddleware, requireRole('admin'), studentController.createStudent);
-router.put('/:id', authMiddleware, requireRole('admin'), studentController.updateStudent);
-router.delete('/:id', authMiddleware, requireRole('admin'), studentController.deleteStudent);
-
-// Marks routes
-router.get('/:studentId/marks', authMiddleware, requireRole('admin', 'teacher'), studentController.getStudentMarks);
-router.post('/:studentId/marks', authMiddleware, requireRole('admin', 'teacher'), studentController.addMarks);
-router.put('/marks/:marksId', authMiddleware, requireRole('admin', 'teacher'), studentController.updateMarks);
+// Protected routes
+router.get('/', authMiddleware.verifyToken, studentController.getAllStudents);
 
 module.exports = router;
