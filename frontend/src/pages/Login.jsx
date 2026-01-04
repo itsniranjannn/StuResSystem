@@ -2,258 +2,322 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogIn, Mail, Lock, GraduationCap, AlertCircle } from 'lucide-react';
+import { 
+  GraduationCap, 
+  Lock, 
+  Mail, 
+  User,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  CheckCircle
+} from 'lucide-react';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-
-  const { login, error, setError, user } = useAuth();
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    name: '',
+    role: 'student',
+    confirmPassword: ''
+  });
+  const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
+  const { login, register, error: authError } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if already logged in
-  useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.email) {
+      newErrors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Email is invalid';
     }
-  }, [user, navigate]);
-
-// In handleSubmit function in Login.jsx
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setIsLoading(true);
-  setError(null);
-
-  const result = await login(email, password);
-  setIsLoading(false);
-
-  if (result.success) {
-    // Redirect to /dashboard which will handle role-based redirect
-    navigate('/dashboard');
-  }
-};
-  const containerVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.6,
-        staggerChildren: 0.1
+    
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+    
+    if (!isLogin) {
+      if (!formData.name) {
+        newErrors.name = 'Name is required';
       }
+      
+      if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = 'Passwords do not match';
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
+    
+    setIsLoading(true);
+    
+    try {
+      if (isLogin) {
+        const result = await login(formData.email, formData.password);
+        if (result.success) {
+          navigate('/dashboard');
+        }
+      } else {
+        const result = await register({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role
+        });
+        if (result.success) {
+          navigate('/dashboard');
+        }
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 }
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+  };
+
+  const switchMode = () => {
+    setIsLogin(!isLogin);
+    setErrors({});
+    setFormData({
+      email: '',
+      password: '',
+      name: '',
+      role: 'student',
+      confirmPassword: ''
+    });
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-gray-50 to-indigo-50 flex items-center justify-center p-4">
-      <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-        {/* Left Side - Illustration & Info */}
-        <motion.div
-          initial={{ opacity: 0, x: -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8 }}
-          className="hidden lg:block"
-        >
-          <div className="bg-white rounded-3xl shadow-2xl p-8">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="p-3 bg-primary-100 rounded-xl">
-                <GraduationCap className="w-8 h-8 text-primary-600" />
-              </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-secondary-50 p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md"
+      >
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+          {/* Header */}
+          <div className="gradient-bg p-8 text-center">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.2 }}
+              className="inline-block p-4 bg-white/20 rounded-full mb-4"
+            >
+              <GraduationCap className="w-12 h-12 text-white" />
+            </motion.div>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Student Result System
+            </h1>
+            <p className="text-white/80">
+              {isLogin ? 'Welcome back! Please login' : 'Create your account'}
+            </p>
+          </div>
+
+          {/* Form */}
+          <div className="p-8">
+            {authError && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3"
+              >
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <span className="text-red-600">{authError}</span>
+              </motion.div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {!isLogin && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neutral-400" />
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      className={`input-field pl-10 ${errors.name ? 'border-red-500' : ''}`}
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+                  {errors.name && (
+                    <p className="mt-1 text-sm text-red-500">{errors.name}</p>
+                  )}
+                </motion.div>
+              )}
+
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Student Result System</h1>
-                <p className="text-gray-600">Tribhuvan University - BCA 6th Semester</p>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neutral-400" />
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className={`input-field pl-10 ${errors.email ? 'border-red-500' : ''}`}
+                    placeholder="student@example.com"
+                  />
+                </div>
+                {errors.email && (
+                  <p className="mt-1 text-sm text-red-500">{errors.email}</p>
+                )}
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neutral-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className={`input-field pl-10 pr-10 ${errors.password ? 'border-red-500' : ''}`}
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="mt-1 text-sm text-red-500">{errors.password}</p>
+                )}
+              </div>
+
+              {!isLogin && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neutral-400" />
+                    <input
+                      type="password"
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      className={`input-field pl-10 ${errors.confirmPassword ? 'border-red-500' : ''}`}
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  {errors.confirmPassword && (
+                    <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>
+                  )}
+
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">
+                      I am a
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {['student', 'teacher', 'admin'].map((role) => (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, role }))}
+                          className={`py-3 px-4 rounded-lg border transition-all duration-200 ${formData.role === role
+                            ? 'border-primary-500 bg-primary-50 text-primary-600'
+                            : 'border-neutral-300 hover:border-neutral-400'
+                            }`}
+                        >
+                          <span className="capitalize">{role}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={isLoading}
+                className="w-full btn-primary flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    {isLogin ? 'Logging in...' : 'Creating account...'}
+                  </>
+                ) : (
+                  <>
+                    {isLogin ? 'Login' : 'Create Account'}
+                  </>
+                )}
+              </motion.button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <button
+                onClick={switchMode}
+                className="text-primary-600 hover:text-primary-700 font-medium"
+              >
+                {isLogin
+                  ? "Don't have an account? Sign up"
+                  : 'Already have an account? Login'}
+              </button>
             </div>
 
-            <div className="space-y-6">
-              <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-xl">
-                <div className="p-2 bg-white rounded-lg shadow">
-                  <div className="w-8 h-8 bg-gradient-to-r from-primary-500 to-blue-500 rounded"></div>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Smart Ranking Algorithm</h3>
-                  <p className="text-sm text-gray-600">Automated ranking with sorting algorithm</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 bg-indigo-50 rounded-xl">
-                <div className="p-2 bg-white rounded-lg shadow">
-                  <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded"></div>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Real-time Analytics</h3>
-                  <p className="text-sm text-gray-600">Interactive charts and performance analysis</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 bg-emerald-50 rounded-xl">
-                <div className="p-2 bg-white rounded-lg shadow">
-                  <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-green-500 rounded"></div>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Secure & Reliable</h3>
-                  <p className="text-sm text-gray-600">JWT authentication with role-based access</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8 pt-8 border-t border-gray-200">
-              <p className="text-gray-600 text-sm">
-                <span className="font-semibold">Demo Credentials:</span><br />
-                Admin: admin@college.edu / admin123<br />
-                Student: john@student.edu / student123<br />
-                Teacher: sharma@college.edu / teacher123
+            <div className="mt-8 pt-6 border-t border-neutral-200">
+              <p className="text-center text-sm text-neutral-500">
+                For testing, use: admin@example.com / password123
               </p>
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Right Side - Login Form */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="bg-white rounded-3xl shadow-2xl p-8 lg:p-10"
-        >
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-primary-500 to-blue-600 rounded-2xl mb-4 shadow-lg">
-              <LogIn className="w-8 h-8 text-white" />
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
-            <p className="text-gray-600">Sign in to access your dashboard</p>
-          </div>
-
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3"
-            >
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-              <p className="text-red-700 text-sm">{error}</p>
-            </motion.div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <motion.div variants={itemVariants}>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="input-field pl-12 pr-4 py-3 bg-gray-50 border-gray-200 focus:bg-white"
-                  placeholder="Enter your email"
-                  required
-                />
-              </div>
-            </motion.div>
-
-            <motion.div variants={itemVariants}>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input-field pl-12 pr-12 py-3 bg-gray-50 border-gray-200 focus:bg-white"
-                  placeholder="Enter your password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
-              </div>
-            </motion.div>
-
-            <motion.div variants={itemVariants} className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="remember"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                />
-                <label htmlFor="remember" className="ml-2 text-sm text-gray-700">
-                  Remember me
-                </label>
-              </div>
-              <Link
-                to="/forgot-password"
-                className="text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors"
-              >
-                Forgot password?
-              </Link>
-            </motion.div>
-
-            <motion.div variants={itemVariants}>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-gradient-to-r from-primary-600 to-blue-600 hover:from-primary-700 hover:to-blue-700 text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Signing in...
-                  </div>
-                ) : (
-                  'Sign In'
-                )}
-              </button>
-            </motion.div>
-          </form>
-
-          <motion.div variants={itemVariants} className="mt-8 pt-6 border-t border-gray-200">
-            <p className="text-center text-gray-600">
-              Don't have an account?{' '}
-              <Link
-                to="/register"
-                className="font-semibold text-primary-600 hover:text-primary-700 transition-colors"
-              >
-                Create account
-              </Link>
-            </p>
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              <button className="p-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">
-                <div className="text-center text-sm font-medium text-gray-700">Student</div>
-              </button>
-              <button className="p-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">
-                <div className="text-center text-sm font-medium text-gray-700">Teacher</div>
-              </button>
-              <button className="p-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">
-                <div className="text-center text-sm font-medium text-gray-700">Admin</div>
-              </button>
-            </div>
-          </motion.div>
-
-          <motion.p
-            variants={itemVariants}
-            className="mt-6 text-center text-xs text-gray-500"
-          >
-            By signing in, you agree to our Terms of Service and Privacy Policy
-          </motion.p>
-        </motion.div>
-      </div>
+        {/* Footer */}
+        <div className="mt-6 text-center text-sm text-neutral-500">
+          <p>© 2024 Student Result Analysis System. Tribhuvan University BCA Project II</p>
+        </div>
+      </motion.div>
     </div>
   );
 };

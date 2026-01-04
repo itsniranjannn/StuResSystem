@@ -1,69 +1,59 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api';
-
+// Create axios instance with default config
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: 'http://localhost:5000/api',
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
   },
-  timeout: 10000
+  timeout: 10000, // 10 seconds timeout
 });
 
-// Request interceptor
+// Request interceptor to add token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('API Request:', config.method, config.url);
     return config;
   },
   (error) => {
-    console.error('API Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor
+// Response interceptor for error handling
 api.interceptors.response.use(
-  (response) => {
-    console.log('API Response:', response.status, response.config.url);
-    return response;
-  },
+  (response) => response,
   (error) => {
-    console.error('API Response Error:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      message: error.message
-    });
-    
     if (error.response) {
       // Server responded with error
-      if (error.response.status === 401) {
+      const { status, data } = error.response;
+      
+      if (status === 401) {
+        // Unauthorized - clear token and redirect to login
         localStorage.removeItem('token');
         window.location.href = '/login';
       }
       
+      // Return error message from server or default
       return Promise.reject({
-        message: error.response.data?.message || 'An error occurred',
-        status: error.response.status,
-        data: error.response.data
+        message: data?.message || 'An error occurred',
+        status,
+        data
       });
     } else if (error.request) {
       // Request made but no response
-      console.error('No response received. Check if backend is running.');
       return Promise.reject({
-        message: 'Cannot connect to server. Please check if backend is running.',
+        message: 'No response from server. Please check your connection.',
         status: 0
       });
     } else {
-      // Something else
+      // Something else happened
       return Promise.reject({
-        message: error.message || 'An error occurred',
-        status: 500
+        message: error.message || 'An unexpected error occurred',
+        status: -1
       });
     }
   }
