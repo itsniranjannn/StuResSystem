@@ -1,17 +1,30 @@
 const express = require('express');
 const router = express.Router();
 const teacherController = require('../controllers/teacherController');
-const { authMiddleware, requireRole } = require('../middleware/authMiddleware');
+const authMiddleware = require('../middleware/authMiddleware');
+const roleMiddleware = require('../middleware/roleMiddleware');
 
-// Teacher dashboard
-router.get('/dashboard', authMiddleware, requireRole('teacher'), teacherController.getTeacherDashboard);
+// Apply authentication and authorization middleware
+router.use(authMiddleware.authenticateToken);
+router.use(roleMiddleware.teacherOnly);
 
-// Teacher profile and subjects
-router.get('/', authMiddleware, requireRole('admin'), teacherController.getAllTeachers);
-router.get('/:id', authMiddleware, requireRole('admin', 'teacher'), teacherController.getTeacherById);
+// Dashboard
+router.get('/dashboard', teacherController.getDashboardStats);
 
-// Subject management
-router.get('/subjects/:subjectId/students', authMiddleware, requireRole('teacher'), teacherController.getSubjectStudents);
-router.post('/subjects/:subjectId/marks/bulk', authMiddleware, requireRole('teacher'), teacherController.bulkUpdateMarks);
+// Student management
+router.get('/students', teacherController.getTeacherStudents);
+
+// Marks management
+router.post('/marks', teacherController.enterMarks);
+router.get('/marks', (req, res) => {
+  // Get marks entered by teacher
+  res.json({ message: 'Get marks endpoint' });
+});
+
+// Attendance
+router.post('/attendance', (req, res) => {
+  // Mark attendance
+  res.json({ message: 'Mark attendance endpoint' });
+});
 
 module.exports = router;

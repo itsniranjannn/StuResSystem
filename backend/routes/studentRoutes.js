@@ -1,31 +1,34 @@
 const express = require('express');
 const router = express.Router();
+const studentController = require('../controllers/studentController');
 const authMiddleware = require('../middleware/authMiddleware');
+const roleMiddleware = require('../middleware/roleMiddleware');
 
-// Mock student controller for now
-const studentController = {
-  getAllStudents: async (req, res) => {
-    try {
-      // This will be implemented later
-      res.json({
-        success: true,
-        message: 'Students fetched successfully',
-        data: [
-          { id: 1, name: 'John Doe', rollNo: 'BCA24001', semester: 6, gpa: 3.8 },
-          { id: 2, name: 'Jane Smith', rollNo: 'BCA24002', semester: 6, gpa: 3.6 },
-          { id: 3, name: 'Bob Johnson', rollNo: 'BCA24003', semester: 6, gpa: 3.9 },
-        ]
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-};
+// Apply authentication and authorization middleware
+router.use(authMiddleware.authenticateToken);
+router.use(roleMiddleware.studentOnly);
 
-// Protected routes
-router.get('/', authMiddleware.verifyToken, studentController.getAllStudents);
+// Dashboard
+router.get('/dashboard', studentController.getDashboardStats);
+
+// Results
+router.get('/results', studentController.getStudentResults);
+
+// Profile
+router.get('/profile', (req, res) => {
+  // Get student profile
+  res.json({ message: 'Get profile endpoint' });
+});
+
+router.put('/profile', (req, res) => {
+  // Update student profile
+  res.json({ message: 'Update profile endpoint' });
+});
+
+// Attendance
+router.get('/attendance', (req, res) => {
+  // Get attendance
+  res.json({ message: 'Get attendance endpoint' });
+});
 
 module.exports = router;

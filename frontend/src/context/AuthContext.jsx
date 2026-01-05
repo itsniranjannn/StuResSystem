@@ -1,81 +1,117 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { authService } from '../services/authService';
+import React, { createContext, useState, useEffect, useContext } from 'react';
+import api from '../services/api';
+import authService from '../services/authService';
 
-const AuthContext = createContext({});
+const AuthContext = createContext();
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [token, setToken] = useState(localStorage.getItem('token'));
 
   useEffect(() => {
-    // Check if user is logged in on mount
-    const token = localStorage.getItem('token');
-    if (token) {
-      authService.getProfile()
-        .then(userData => {
-          setUser(userData);
-        })
-        .catch(() => {
-          localStorage.removeItem('token');
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    } else {
+    const loadUser = async () => {
+      if (token) {
+        try {
+          const response = await authService.getProfile();
+          setUser(response.data);
+        } catch (error) {
+          console.error('Error loading user:', error);
+          logout();
+        }
+      }
       setLoading(false);
-    }
-  }, []);
+    };
+
+    loadUser();
+  }, [token]);
 
   const login = async (email, password) => {
     try {
-      setError('');
-      const data = await authService.login(email, password);
-      setUser(data.user);
-      localStorage.setItem('token', data.token);
-      return { success: true };
-    } catch (err) {
-      setError(err.message || 'Login failed');
-      return { success: false, message: err.message };
+      const response = await authService.login({ email, password });
+      const { token, user } = response.data;
+      
+      localStorage.setItem('token', token);
+      setToken(token);
+      setUser(user);
+      
+      return { success: true, user };
+    } catch (error) {
+      return { 
+        success: false, 
+        message: error.response?.data?.message || 'Login failed' 
+      };
+    }
+  };
+
+  const register = async (userData) => {
+    try {
+      const response = await authService.register(userData);
+      const { token, user } = response.data;
+      
+      localStorage.setItem('token', token);
+      setToken(token);
+      setUser(user);
+      
+      return { success: true, user };
+    } catch (error) {
+      return { 
+        success: false, 
+        message: error.response?.data?.message || 'Registration failed' 
+      };
     }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    setToken(null);
     setUser(null);
   };
 
-  const register = async (userData) => {
+  const updateProfile = async (profileData) => {
     try {
-      setError('');
-      const data = await authService.register(userData);
-      setUser(data.user);
-      localStorage.setItem('token', data.token);
-      return { success: true };
-    } catch (err) {
-      setError(err.message || 'Registration failed');
-      return { success: false, message: err.message };
+      const response = await authService.updateProfile(profileData);
+      setUser(response.data);
+      return { success: true, user: response.data };
+    } catch (error) {
+      return { 
+        success: false, 
+        message: error.response?.data?.message || 'Update failed' 
+      };
     }
+  };
+
+  const hasRole = (requiredRole) => {
+    if (!user) return false;
+    if (Array.isArray(requiredRole)) {
+      return requiredRole.includes(user.role);
+    }
+    return user.role === requiredRole;
   };
 
   const value = {
     user,
     loading,
-    error,
+    token,
     login,
-    logout,
     register,
-    isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin',
-    isTeacher: user?.role === 'teacher',
-    isStudent: user?.role === 'student'
+    logout,
+    updateProfile,
+    hasRole,
+    isAuthenticated: !!user
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
