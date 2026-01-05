@@ -1,19 +1,34 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import LoadingSpinner from './LoadingSpinner';
 
-const ProtectedRoute = () => {
-  const { isAuthenticated, loading } = useAuth();
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { user, loading, isAuthenticated } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
-  return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    // Redirect to appropriate dashboard based on role
+    switch(user.role) {
+      case 'admin':
+        return <Navigate to="/admin/dashboard" replace />;
+      case 'teacher':
+        return <Navigate to="/teacher/dashboard" replace />;
+      case 'student':
+        return <Navigate to="/student/dashboard" replace />;
+      default:
+        return <Navigate to="/login" replace />;
+    }
+  }
+
+  return children || <Outlet />;
 };
 
 export default ProtectedRoute;

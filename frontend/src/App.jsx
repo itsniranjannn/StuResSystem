@@ -2,108 +2,89 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
-import { useAuth } from './context/AuthContext';
+import Layout from './components/layout/Layout';
+
 // Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
+import NotFound from './pages/NotFound';
 
-// Dashboard based on role
+// Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
+import AdminUsers from './pages/admin/Users';
+
+// Teacher Pages
 import TeacherDashboard from './pages/teacher/Dashboard';
+import TeacherStudents from './pages/teacher/Students';
+import TeacherMarks from './pages/teacher/Marks';
+
+// Student Pages
 import StudentDashboard from './pages/student/Dashboard';
+import StudentResults from './pages/student/Results';
+import StudentProfile from './pages/student/Profile';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <Router>
+      <AuthProvider>
         <Routes>
           {/* Public Routes */}
-          <Route path="/" element={<Login />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password/:token" element={<ResetPassword />} />
-
-          {/* Role-based Protected Routes */}
+          
           {/* Admin Routes */}
-          <Route
-            path="/admin/*"
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-
+          <Route path="/admin" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Layout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
+            {/* Add more admin routes here */}
+          </Route>
+          
           {/* Teacher Routes */}
-          <Route
-            path="/teacher/*"
-            element={
-              <ProtectedRoute requiredRole="teacher">
-                <TeacherDashboard />
-              </ProtectedRoute>
-            }
-          />
-
+          <Route path="/teacher" element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <Layout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<TeacherDashboard />} />
+            <Route path="students" element={<TeacherStudents />} />
+            <Route path="marks" element={<TeacherMarks />} />
+            {/* Add more teacher routes here */}
+          </Route>
+          
           {/* Student Routes */}
-          <Route
-            path="/student/*"
-            element={
-              <ProtectedRoute requiredRole="student">
-                <StudentDashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Default redirect based on role */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <RoleBasedRedirect />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Catch all route */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/student" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Layout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<StudentDashboard />} />
+            <Route path="results" element={<StudentResults />} />
+            <Route path="profile" element={<StudentProfile />} />
+            {/* Add more student routes here */}
+          </Route>
+          
+          {/* Root redirect based on role */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Navigate to="/dashboard" replace />
+            </ProtectedRoute>
+          } />
+          
+          {/* 404 Route */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
-      </Router>
-    </AuthProvider>
+      </AuthProvider>
+    </Router>
   );
 }
-
-// Component to redirect based on user role
-const RoleBasedRedirect = () => {
-  const { user } = useAuth();
-  
-  React.useEffect(() => {
-    if (user) {
-      switch(user.role) {
-        case 'admin':
-          window.location.href = '/admin/dashboard';
-          break;
-        case 'teacher':
-          window.location.href = '/teacher/dashboard';
-          break;
-        case 'student':
-          window.location.href = '/student/dashboard';
-          break;
-        default:
-          window.location.href = '/';
-      }
-    }
-  }, [user]);
-
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-neutral-600">Redirecting to your dashboard...</p>
-      </div>
-    </div>
-  );
-};
 
 export default App;
