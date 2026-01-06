@@ -1,72 +1,87 @@
 import React from 'react';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Area,
-  AreaChart
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    AreaChart,
+    Area
 } from 'recharts';
 
-const PerformanceChart = () => {
-  const data = [
-    { semester: 'Sem 1', gpa: 2.8, average: 3.0 },
-    { semester: 'Sem 2', gpa: 3.0, average: 3.1 },
-    { semester: 'Sem 3', gpa: 3.2, average: 3.0 },
-    { semester: 'Sem 4', gpa: 3.4, average: 3.2 },
-    { semester: 'Sem 5', gpa: 3.6, average: 3.3 },
-    { semester: 'Sem 6', gpa: 3.8, average: 3.5 },
-  ];
+const PerformanceChart = ({ data, type = 'line' }) => {
+    const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-white p-3 shadow-lg rounded-lg border border-gray-200">
+                    <p className="font-semibold text-gray-900">{label}</p>
+                    {payload.map((entry, index) => (
+                        <p key={index} className="text-sm" style={{ color: entry.color }}>
+                            {entry.name}: {entry.value}
+                        </p>
+                    ))}
+                </div>
+            );
+        }
+        return null;
+    };
 
-  return (
-    <div className="h-72">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart
-          data={data}
-          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis 
-            dataKey="semester" 
-            stroke="#64748b"
-            tick={{ fill: '#64748b' }}
-          />
-          <YAxis 
-            stroke="#64748b"
-            tick={{ fill: '#64748b' }}
-            domain={[0, 4]}
-          />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: 'white',
-              border: '1px solid #e2e8f0',
-              borderRadius: '8px'
-            }}
-          />
-          <Area
-            type="monotone"
-            dataKey="gpa"
-            stroke="#0066e5"
-            fill="#0066e5"
-            fillOpacity={0.1}
-            strokeWidth={3}
-          />
-          <Area
-            type="monotone"
-            dataKey="average"
-            stroke="#0ea5e9"
-            fill="#0ea5e9"
-            fillOpacity={0.05}
-            strokeWidth={2}
-            strokeDasharray="5 5"
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  );
+    return (
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+            <div className="flex items-center justify-between mb-6">
+                <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Performance Trend</h3>
+                    <p className="text-sm text-gray-600">Last 6 semesters</p>
+                </div>
+                <div className="flex space-x-2">
+                    <button className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded-lg">
+                        GPA
+                    </button>
+                    <button className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+                        Marks
+                    </button>
+                </div>
+            </div>
+            
+            <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                    {type === 'area' ? (
+                        <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="semester" stroke="#666" />
+                            <YAxis stroke="#666" />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Area 
+                                type="monotone" 
+                                dataKey="gpa" 
+                                stroke="#3b82f6" 
+                                fill="#93c5fd" 
+                                fillOpacity={0.3}
+                                strokeWidth={2}
+                            />
+                        </AreaChart>
+                    ) : (
+                        <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="semester" stroke="#666" />
+                            <YAxis stroke="#666" />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Line 
+                                type="monotone" 
+                                dataKey="gpa" 
+                                stroke="#3b82f6" 
+                                strokeWidth={2}
+                                dot={{ r: 4 }}
+                                activeDot={{ r: 6 }}
+                            />
+                        </LineChart>
+                    )}
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
 };
 
 export default PerformanceChart;
