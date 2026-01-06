@@ -1,235 +1,316 @@
-const pool = require('../config/database');
+const db = require('../config/database');
 
 // Get all teachers
-exports.getAllTeachers = async (req, res) => {
-  try {
-    const [teachers] = await pool.execute(`
-      SELECT t.*, u.email, u.phone, u.profile_image,
-             u.created_at as account_created
-      FROM teachers t
-      LEFT JOIN users u ON t.user_id = u.id
-      ORDER BY t.teacher_name
-    `);
-    
-    res.json({
-      success: true,
-      count: teachers.length,
-      data: teachers
-    });
-  } catch (error) {
-    console.error('Get teachers error:', error);
-    res.status(500).json({ error: 'Server error fetching teachers' });
-  }
+const getAllTeachers = async (req, res) => {
+    try {
+        const { page = 1, limit = 10, department, search } = req.query;
+        const offset = (page - 1) * limit;
+        
+        let query = `
+            SELECT t.*, u.email, u.profile_image, u.is_active
+            FROM teachers t
+            LEFT JOIN users u ON t.user_id = u.id
+            WHERE 1=1
+        `;
+        
+        const params = [];
+        
+        if (department && department !== 'all') {
+            query += ` AND t.department = ?`;
+            params.push(department);
+        }
+        
+        if (search) {
+            query += ` AND (t.teacher_name LIKE ? OR u.email LIKE ?)`;
+            const searchTerm = `%${search}%`;
+            params.push(searchTerm, searchTerm);
+        }
+        
+        query += ` ORDER BY t.created_at DESC LIMIT ? OFFSET ?`;
+        params.push(parseInt(limit), parseInt(offset));
+        
+        const [teachers] = await db.query(query, params);
+        
+        // Get total
+        let countQuery = `
+            SELECT COUNT(*) as total FROM teachers t
+            LEFT JOIN users u ON t.user_id = u.id
+            WHERE 1=1
+        `;
+        
+        if (department && department !== 'all') {
+            countQuery += ` AND t.department = ?`;
+        }
+        if (search) {
+            countQuery += ` AND (t.teacher_name LIKE ? OR u.email LIKE ?)`;
+        }
+        
+        const [countResult] = await db.query(countQuery, params.slice(0, params.length - 2));
+        const total = countResult[0]?.total || 0;
+        
+        res.json({
+            success: true,
+            data: teachers,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+        
+    } catch (error) {
+        console.error('Get teachers error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to fetch teachers' 
+        });
+    }
 };
 
 // Get teacher by ID
-exports.getTeacherById = async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const [teachers] = await pool.execute(`
-      SELECT t.*, u.email, u.phone, u.profile_image,
-             u.created_at as account_created
-      FROM teachers t
-      LEFT JOIN users u ON t.user_id = u.id
-      WHERE t.id = ?
-    `, [id]);
-    
-    if (teachers.length === 0) {
-      return res.status(404).json({ error: 'Teacher not found' });
+const getTeacherById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const [teachers] = await db.query(`
+            SELECT t.*, u.email, u.profile_image, u.is_active
+            FROM teachers t
+            LEFT JOIN users u ON t.user_id = u.id
+            WHERE t.id = ?
+        `, [id]);
+        
+        if (teachers.length === 0) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Teacher not found' 
+            });
+        }
+        
+        const teacher = teachers[0];
+        
+        // Get assigned subjects
+        const [subjects] = await db.query(`
+            SELECT s.* FROM subjects s
+            WHERE s.teacher_id = ?
+            ORDER BY s.semester, s.code
+        `, [id]);
+        
+        teacher.subjects = subjects;
+        
+        res.json({
+            success: true,
+            data: teacher
+        });
+        
+    } catch (error) {
+        console.error('Get teacher error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to fetch teacher' 
+        });
     }
-    
-    // Get subjects taught by this teacher
-    const [subjects] = await pool.execute(`
-      SELECT s.*, COUNT(DISTINCT m.student_id) as total_students
-      FROM subjects s
-      LEFT JOIN marks m ON s.id = m.subject_id
-      WHERE s.teacher_id = ?
-      GROUP BY s.id
-      ORDER BY s.semester, s.code
-    `, [id]);
-    
-    res.json({
-      success: true,
-      data: {
-        ...teachers[0],
-        subjects
-      }
-    });
-  } catch (error) {
-    console.error('Get teacher error:', error);
-    res.status(500).json({ error: 'Server error fetching teacher' });
-  }
 };
 
-// Get teacher's dashboard stats
-exports.getTeacherDashboard = async (req, res) => {
-  try {
-    const teacherId = req.user.id;
-    
-    // Get teacher info
-    const [teachers] = await pool.execute(
-      'SELECT id FROM teachers WHERE user_id = ?',
-      [teacherId]
-    );
-    
-    if (teachers.length === 0) {
-      return res.status(404).json({ error: 'Teacher not found' });
-    }
-    
-    const teacherDbId = teachers[0].id;
-    
-    // Get stats
-    const [stats] = await pool.execute(`
-      SELECT 
-        COUNT(DISTINCT s.id) as total_subjects,
-        COUNT(DISTINCT m.student_id) as total_students,
-        AVG(m.marks_obtained) as average_marks,
-        COUNT(DISTINCT CASE WHEN m.exam_type = 'final' THEN m.student_id END) as students_graded
-      FROM subjects s
-      LEFT JOIN marks m ON s.id = m.subject_id
-      WHERE s.teacher_id = ?
-    `, [teacherDbId]);
-    
-    // Get recent marks added
-    const [recentMarks] = await pool.execute(`
-      SELECT m.*, s.student_name, sj.name as subject_name, sj.code
-      FROM marks m
-      JOIN students s ON m.student_id = s.id
-      JOIN subjects sj ON m.subject_id = sj.id
-      WHERE sj.teacher_id = ?
-      ORDER BY m.created_at DESC
-      LIMIT 10
-    `, [teacherDbId]);
-    
-    // Get subjects with pending marks
-    const [pendingSubjects] = await pool.execute(`
-      SELECT s.*, 
-        COUNT(DISTINCT st.id) as total_enrolled,
-        COUNT(DISTINCT m.student_id) as marks_entered
-      FROM subjects s
-      JOIN students st ON st.semester = s.semester
-      LEFT JOIN marks m ON s.id = m.subject_id AND m.student_id = st.id AND m.exam_type = 'final'
-      WHERE s.teacher_id = ? AND s.semester = 6
-      GROUP BY s.id
-    `, [teacherDbId]);
-    
-    res.json({
-      success: true,
-      data: {
-        stats: stats[0] || {},
-        recentMarks,
-        pendingSubjects
-      }
-    });
-  } catch (error) {
-    console.error('Teacher dashboard error:', error);
-    res.status(500).json({ error: 'Server error fetching dashboard' });
-  }
-};
-
-// Get students for a subject
-exports.getSubjectStudents = async (req, res) => {
-  try {
-    const { subjectId } = req.params;
-    
-    const [students] = await pool.execute(`
-      SELECT s.*, m.marks_obtained, m.exam_type, m.exam_year
-      FROM students s
-      LEFT JOIN marks m ON s.id = m.student_id AND m.subject_id = ?
-      WHERE s.semester = (SELECT semester FROM subjects WHERE id = ?)
-      ORDER BY s.roll_no
-    `, [subjectId, subjectId]);
-    
-    res.json({
-      success: true,
-      data: students
-    });
-  } catch (error) {
-    console.error('Get subject students error:', error);
-    res.status(500).json({ error: 'Server error fetching students' });
-  }
-};
-
-// Bulk update marks for subject
-exports.bulkUpdateMarks = async (req, res) => {
-  try {
-    const { subjectId } = req.params;
-    const { marks, exam_type, exam_year } = req.body;
-    
-    // Start transaction
-    await pool.execute('START TRANSACTION');
-    
-    // Get subject details
-    const [subjects] = await pool.execute(
-      'SELECT name, semester FROM subjects WHERE id = ?',
-      [subjectId]
-    );
-    
-    if (subjects.length === 0) {
-      await pool.execute('ROLLBACK');
-      return res.status(404).json({ error: 'Subject not found' });
-    }
-    
-    const subjectName = subjects[0].name;
-    const semester = subjects[0].semester;
-    
-    // Process each student's marks
-    for (const mark of marks) {
-      const { student_id, marks_obtained } = mark;
-      
-      // Get student name
-      const [students] = await pool.execute(
-        'SELECT student_name FROM students WHERE id = ?',
-        [student_id]
-      );
-      
-      if (students.length === 0) continue;
-      
-      const studentName = students[0].student_name;
-      
-      // Check if marks already exist
-      const [existing] = await pool.execute(`
-        SELECT id FROM marks 
-        WHERE student_id = ? AND subject_id = ? 
-        AND exam_type = ? AND exam_year = ?
-      `, [student_id, subjectId, exam_type, exam_year]);
-      
-      if (existing.length > 0) {
-        // Update existing marks
-        await pool.execute(
-          'UPDATE marks SET marks_obtained = ? WHERE id = ?',
-          [marks_obtained, existing[0].id]
+// Create teacher
+const createTeacher = async (req, res) => {
+    const connection = await db.pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        
+        const { name, email, password = 'teacher123', teacher_name, department = 'Computer Science' } = req.body;
+        
+        if (!name || !email || !teacher_name) {
+            await connection.rollback();
+            return res.status(400).json({
+                success: false,
+                message: 'Name, email and teacher name are required'
+            });
+        }
+        
+        // Check email
+        const [existing] = await connection.query(
+            'SELECT id FROM users WHERE email = ?',
+            [email]
         );
-      } else {
-        // Insert new marks
-        await pool.execute(`
-          INSERT INTO marks (student_id, student_name, subject_id, subject_name,
-            marks_obtained, exam_type, exam_year)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `, [student_id, studentName, subjectId, subjectName, 
-            marks_obtained, exam_type, exam_year]);
-      }
-      
-      // Recalculate result if it's final exam
-      if (exam_type === 'final') {
-        await recalculateStudentResult(student_id, exam_year);
-      }
+        if (existing.length > 0) {
+            await connection.rollback();
+            return res.status(400).json({
+                success: false,
+                message: 'Email already exists'
+            });
+        }
+        
+        // Hash password
+        const bcrypt = require('bcryptjs');
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Create user
+        const [userResult] = await connection.query(
+            'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+            [name, email, hashedPassword, 'teacher']
+        );
+        const userId = userResult.insertId;
+        
+        // Create teacher
+        await connection.query(
+            `INSERT INTO teachers (user_id, teacher_name, department)
+             VALUES (?, ?, ?)`,
+            [userId, teacher_name, department]
+        );
+        
+        await connection.commit();
+        
+        res.status(201).json({
+            success: true,
+            message: 'Teacher created successfully',
+            data: { userId, email, teacher_name }
+        });
+        
+    } catch (error) {
+        await connection.rollback();
+        console.error('Create teacher error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to create teacher' 
+        });
+    } finally {
+        connection.release();
     }
-    
-    await pool.execute('COMMIT');
-    
-    res.json({
-      success: true,
-      message: 'Marks updated successfully'
-    });
-    
-  } catch (error) {
-    await pool.execute('ROLLBACK');
-    console.error('Bulk update marks error:', error);
-    res.status(500).json({ error: 'Server error updating marks' });
-  }
 };
 
-// Import recalculate function
-const { recalculateStudentResult } = require('./studentController');
+// Update teacher
+const updateTeacher = async (req, res) => {
+    const connection = await db.pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        
+        const { id } = req.params;
+        const updateData = req.body;
+        
+        // Get user_id
+        const [teachers] = await connection.query(
+            'SELECT user_id FROM teachers WHERE id = ?',
+            [id]
+        );
+        if (teachers.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({
+                success: false,
+                message: 'Teacher not found'
+            });
+        }
+        const userId = teachers[0].user_id;
+        
+        // Update user
+        const userUpdates = {};
+        if (updateData.name) userUpdates.name = updateData.name;
+        if (updateData.email) {
+            const [existing] = await connection.query(
+                'SELECT id FROM users WHERE email = ? AND id != ?',
+                [updateData.email, userId]
+            );
+            if (existing.length > 0) {
+                await connection.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'Email already in use'
+                });
+            }
+            userUpdates.email = updateData.email;
+        }
+        
+        if (Object.keys(userUpdates).length > 0) {
+            await connection.query(
+                'UPDATE users SET ? WHERE id = ?',
+                [userUpdates, userId]
+            );
+        }
+        
+        // Update teacher
+        const teacherUpdates = { ...updateData };
+        delete teacherUpdates.name;
+        delete teacherUpdates.email;
+        delete teacherUpdates.password;
+        
+        if (Object.keys(teacherUpdates).length > 0) {
+            await connection.query(
+                'UPDATE teachers SET ? WHERE id = ?',
+                [teacherUpdates, id]
+            );
+        }
+        
+        await connection.commit();
+        
+        res.json({
+            success: true,
+            message: 'Teacher updated successfully'
+        });
+        
+    } catch (error) {
+        await connection.rollback();
+        console.error('Update teacher error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to update teacher' 
+        });
+    } finally {
+        connection.release();
+    }
+};
+
+// Delete teacher
+const deleteTeacher = async (req, res) => {
+    const connection = await db.pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        
+        const { id } = req.params;
+        
+        // Get user_id
+        const [teachers] = await connection.query(
+            'SELECT user_id FROM teachers WHERE id = ?',
+            [id]
+        );
+        if (teachers.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({
+                success: false,
+                message: 'Teacher not found'
+            });
+        }
+        const userId = teachers[0].user_id;
+        
+        // Delete teacher
+        await connection.query('DELETE FROM teachers WHERE id = ?', [id]);
+        
+        // Delete user
+        await connection.query('DELETE FROM users WHERE id = ?', [userId]);
+        
+        await connection.commit();
+        
+        res.json({
+            success: true,
+            message: 'Teacher deleted successfully'
+        });
+        
+    } catch (error) {
+        await connection.rollback();
+        console.error('Delete teacher error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to delete teacher' 
+        });
+    } finally {
+        connection.release();
+    }
+};
+
+// Export all functions
+module.exports = {
+    getAllTeachers,
+    getTeacherById,
+    createTeacher,
+    updateTeacher,
+    deleteTeacher
+};

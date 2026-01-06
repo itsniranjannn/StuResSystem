@@ -1,85 +1,67 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { 
-  Menu, Bell, Search, User, 
-  ChevronDown, Calendar, HelpCircle
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { Bell, Search, Menu } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const Header = () => {
-  const { user, toggleSidebar } = useAuth();
-  
-  const today = new Date();
-  const formattedDate = today.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
+    const { user } = useAuth();
+    const [searchQuery, setSearchQuery] = useState('');
+    
+    const getRoleBadge = () => {
+        switch(user?.role) {
+            case 'admin': return 'bg-red-100 text-red-800';
+            case 'teacher': return 'bg-blue-100 text-blue-800';
+            case 'student': return 'bg-green-100 text-green-800';
+            default: return 'bg-gray-100 text-gray-800';
+        }
+    };
 
-  return (
-    <motion.header
-      initial={{ y: -20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-neutral-200"
-    >
-      <div className="px-6 py-4">
-        <div className="flex items-center justify-between">
-          {/* Left side */}
-          <div className="flex items-center gap-4">
-            <button
-              onClick={toggleSidebar}
-              className="p-2 hover:bg-neutral-100 rounded-xl transition-colors lg:hidden"
-            >
-              <Menu className="w-5 h-5 text-neutral-700" />
-            </button>
-            
-            <div className="hidden lg:flex items-center gap-2 text-neutral-600">
-              <Calendar className="w-4 h-4" />
-              <span className="text-sm">{formattedDate}</span>
-            </div>
-          </div>
+    return (
+        <header className="bg-white border-b border-gray-200">
+            <div className="px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center justify-between h-16">
+                    {/* Left side - Search */}
+                    <div className="flex-1 flex items-center">
+                        <div className="max-w-md w-full">
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Search className="h-5 w-5 text-gray-400" />
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Search..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                />
+                            </div>
+                        </div>
+                    </div>
 
-          {/* Center - Search */}
-          <div className="flex-1 max-w-2xl mx-4">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400" />
-              <input
-                type="search"
-                placeholder="Search students, results, or subjects..."
-                className="w-full pl-10 pr-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none text-sm placeholder:text-neutral-400"
-              />
-            </div>
-          </div>
+                    {/* Right side - User info & notifications */}
+                    <div className="flex items-center space-x-4">
+                        {/* Notifications */}
+                        <button className="relative p-1 text-gray-400 hover:text-gray-500 focus:outline-none">
+                            <Bell className="h-6 w-6" />
+                            <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-400"></span>
+                        </button>
 
-          {/* Right side */}
-          <div className="flex items-center gap-3">
-            <button className="p-2 hover:bg-neutral-100 rounded-xl transition-colors relative">
-              <Bell className="w-5 h-5 text-neutral-700" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger-500 rounded-full"></span>
-            </button>
-            
-            <button className="p-2 hover:bg-neutral-100 rounded-xl transition-colors">
-              <HelpCircle className="w-5 h-5 text-neutral-700" />
-            </button>
-            
-            <div className="hidden lg:block border-l border-neutral-200 pl-3">
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-neutral-900">{user?.name}</p>
-                  <p className="text-xs text-neutral-600 capitalize">{user?.role}</p>
+                        {/* User profile */}
+                        <div className="flex items-center space-x-3">
+                            <div className="text-right hidden md:block">
+                                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadge()}`}>
+                                    {user?.role?.toUpperCase()}
+                                </span>
+                            </div>
+                            <div className="h-9 w-9 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 flex items-center justify-center text-white font-semibold">
+                                {user?.name?.charAt(0) || 'U'}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="w-8 h-8 bg-gradient-to-br from-primary-400 to-secondary-400 rounded-lg flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
-                </div>
-                <ChevronDown className="w-4 h-4 text-neutral-400" />
-              </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </motion.header>
-  );
+        </header>
+    );
 };
 
 export default Header;
