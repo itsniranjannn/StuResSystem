@@ -1,7 +1,7 @@
 {
-  "name": "student-result-system-backend",
+  "name": "student-result-backend",
   "version": "1.0.0",
-  "description": "Backend for Student Result Analysis System",
+  "description": "Student Result Analysis & Ranking System - Backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,23 +9,27 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
-    "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
-    "crypto": "^1.0.1",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
-    "framer-motion": "^12.23.26",
+    "express-rate-limit": "^6.11.2",
+    "helmet": "^7.2.0",
     "jsonwebtoken": "^9.0.3",
-    "lucide-react": "^0.562.0",
-    "multer": "^2.0.2",
+    "morgan": "^1.10.1",
     "mysql2": "^3.16.0",
-    "nodemailer": "^7.0.11",
-    "react-router-dom": "^7.11.0",
-    "recharts": "^3.6.0"
+    "nodemailer": "^6.10.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
-  }
+  },
+  "keywords": [
+    "student",
+    "result",
+    "ranking",
+    "tu",
+    "bca"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
 }
