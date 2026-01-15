@@ -1,3 +1,4 @@
+// backend/middleware/authMiddleware.js
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
@@ -13,49 +14,66 @@ const authenticateToken = async (req, res, next) => {
             });
         }
         
-        jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production', async (err, decoded) => {
-            if (err) {
-                return res.status(403).json({ 
-                    success: false, 
-                    message: 'Invalid or expired token' 
-                });
-            }
-            
-            // Fetch user from database
-            const [users] = await db.query(
-                'SELECT id, name, email, role, profile_image, is_active FROM users WHERE id = ?',
-                [decoded.id]
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+        
+        // Fetch user from database
+        const [users] = await db.query(
+            'SELECT id, name, email, role, profile_image, is_active FROM users WHERE id = ?',
+            [decoded.id]
+        );
+        
+        if (users.length === 0) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'User not found' 
+            });
+        }
+        
+        const user = users[0];
+        
+        // Check if user is active
+        if (!user.is_active) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Account is deactivated' 
+            });
+        }
+        
+        // Fetch role-specific data
+        if (user.role === 'student') {
+            const [students] = await db.query(
+                'SELECT * FROM students WHERE user_id = ?',
+                [user.id]
             );
-            
-            if (users.length === 0) {
-                return res.status(404).json({ 
-                    success: false, 
-                    message: 'User not found' 
-                });
-            }
-            
-            const user = users[0];
-            
-            // Fetch role-specific data
-            if (user.role === 'student') {
-                const [students] = await db.query(
-                    'SELECT * FROM students WHERE user_id = ?',
-                    [user.id]
-                );
-                user.student_data = students[0] || null;
-            } else if (user.role === 'teacher') {
-                const [teachers] = await db.query(
-                    'SELECT * FROM teachers WHERE user_id = ?',
-                    [user.id]
-                );
-                user.teacher_data = teachers[0] || null;
-            }
-            
-            req.user = user;
-            next();
-        });
+            user.student_data = students[0] || null;
+        } else if (user.role === 'teacher') {
+            const [teachers] = await db.query(
+                'SELECT * FROM teachers WHERE user_id = ?',
+                [user.id]
+            );
+            user.teacher_data = teachers[0] || null;
+        }
+        
+        req.user = user;
+        next();
+        
     } catch (error) {
-        console.error('Auth middleware error:', error);
+        console.error('Auth middleware error:', error.message);
+        
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Token expired' 
+            });
+        }
+        
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Invalid token' 
+            });
+        }
+        
         res.status(500).json({ 
             success: false, 
             message: 'Authentication failed' 

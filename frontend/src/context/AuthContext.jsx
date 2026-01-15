@@ -1,3 +1,4 @@
+// frontend/src/context/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -27,18 +28,24 @@ export const AuthProvider = ({ children }) => {
             // Set token in axios headers
             api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             
-            // Fetch user profile
-            const response = await api.get('/auth/profile');
-            if (response.data.success) {
-                setUser(response.data.data);
-            } else {
-                localStorage.removeItem('token');
-                delete api.defaults.headers.common['Authorization'];
+            try {
+                const response = await api.get('/auth/profile');
+                if (response.data.success) {
+                    setUser(response.data.data);
+                } else {
+                    // Clear invalid token
+                    localStorage.removeItem('token');
+                    delete api.defaults.headers.common['Authorization'];
+                }
+            } catch (profileError) {
+                if (profileError.code !== 'ERR_NETWORK') {
+                    console.log('Profile fetch failed, clearing token');
+                    localStorage.removeItem('token');
+                    delete api.defaults.headers.common['Authorization'];
+                }
             }
         } catch (error) {
             console.error('Auth check failed:', error);
-            localStorage.removeItem('token');
-            delete api.defaults.headers.common['Authorization'];
         } finally {
             setLoading(false);
         }
@@ -47,10 +54,14 @@ export const AuthProvider = ({ children }) => {
     const login = async (email, password) => {
         try {
             setError(null);
+            console.log('🔐 Attempting login for:', email);
+            
             const response = await api.post('/auth/login', { email, password });
             
             if (response.data.success) {
                 const { token, user } = response.data.data;
+                
+                console.log('✅ Login successful, token received');
                 
                 // Store token
                 localStorage.setItem('token', token);
@@ -58,8 +69,9 @@ export const AuthProvider = ({ children }) => {
                 
                 // Set user
                 setUser(user);
+                setError(null);
                 
-                // Redirect based on role
+                // Navigate based on role
                 switch(user.role) {
                     case 'admin':
                         navigate('/admin/dashboard');
@@ -75,20 +87,39 @@ export const AuthProvider = ({ children }) => {
                 }
                 
                 return { success: true };
+            } else {
+                setError(response.data.message || 'Login failed');
+                return { success: false, error: response.data.message };
             }
         } catch (error) {
-            setError(error.response?.data?.message || 'Login failed');
-            return { success: false, error: error.response?.data?.message };
+            console.error('Login error:', error);
+            
+            let errorMessage = 'Login failed. Please check credentials.';
+            
+            if (error.response) {
+                if (error.response.data) {
+                    errorMessage = error.response.data.message || errorMessage;
+                }
+            } else if (error.code === 'ERR_NETWORK') {
+                errorMessage = 'Cannot connect to server. Please make sure backend is running on http://localhost:5000';
+            }
+            
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
         }
     };
 
     const register = async (userData) => {
         try {
             setError(null);
+            console.log('📤 Registering user:', userData.email);
+            
             const response = await api.post('/auth/register', userData);
             
             if (response.data.success) {
                 const { token, user } = response.data.data;
+                
+                console.log('✅ Registration successful, auto-login:', user.email);
                 
                 // Store token
                 localStorage.setItem('token', token);
@@ -96,19 +127,40 @@ export const AuthProvider = ({ children }) => {
                 
                 // Set user
                 setUser(user);
+                setError(null);
                 
-                return { success: true, message: response.data.message };
+                // Navigate based on role
+                navigate(`/${user.role}/dashboard`);
+                
+                return { 
+                    success: true, 
+                    message: 'Registration successful!',
+                    data: { user }
+                };
             } else {
+                setError(response.data.message);
                 return { success: false, error: response.data.message };
             }
         } catch (error) {
-            const errorMessage = error.response?.data?.message || 'Registration failed';
+            console.error('Registration error:', error);
+            
+            let errorMessage = 'Registration failed. Please try again.';
+            
+            if (error.response) {
+                if (error.response.data) {
+                    errorMessage = error.response.data.message || errorMessage;
+                }
+            } else if (error.code === 'ERR_NETWORK') {
+                errorMessage = 'Cannot connect to server. Please make sure backend is running on http://localhost:5000';
+            }
+            
             setError(errorMessage);
             return { success: false, error: errorMessage };
         }
     };
 
     const logout = () => {
+        console.log('👋 Logging out user');
         localStorage.removeItem('token');
         delete api.defaults.headers.common['Authorization'];
         setUser(null);
@@ -122,10 +174,17 @@ export const AuthProvider = ({ children }) => {
             if (response.data.success) {
                 setUser(prev => ({ ...prev, ...profileData }));
                 return { success: true };
+            } else {
+                return { success: false, error: response.data.message };
             }
         } catch (error) {
-            return { success: false, error: error.response?.data?.message };
+            console.error('Update profile error:', error);
+            return { success: false, error: error.response?.data?.message || 'Update failed' };
         }
+    };
+
+    const clearError = () => {
+        setError(null);
     };
 
     const value = {
@@ -135,12 +194,14 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         logout,
-        updateProfile
+        updateProfile,
+        clearError,
+        setError
     };
 
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 };
