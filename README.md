@@ -93,3 +93,6 @@ frontend/  src/pages (public, student, teacher, admin), components (Shell, Comma
 ## Notes
 * Subject codes, credits and grade scales follow the TU and NEB schemes as best known; admins can edit programs and subjects without code changes.
 * The seeded names and marks are fictional apart from one account created with the author's own details.
+
+## Documentation
+The `Documentation/` folder holds the TU Project III deliverables: `Anka_Project_Report.docx/.pdf` (about 50 pages in the TU format), `Anka_Project_Proposal.docx/.pdf` (15 pages) and `Anka_Defense_Presentation.pptx/.pdf` (10 slides), with their figures, screenshots and generator scripts (`Documentation/build`). Supervisor, examiner and date fields are highlighted placeholders to fill in.
