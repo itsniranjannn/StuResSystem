@@ -35,7 +35,7 @@ const TEACHERS = [
 async function main() {
   const conn = await mysql.createConnection({ ...settings, multipleStatements: true });
   console.log('Creating schema ...');
-  await conn.query(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
+  await conn.query(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8').split('student_result_system').join(DB_NAME));
   await conn.changeUser({ database: DB_NAME });
   const ins = async (sql, p) => (await conn.query(sql, p))[0].insertId;
   const hAdmin = bcrypt.hashSync('Admin@123', 10);
