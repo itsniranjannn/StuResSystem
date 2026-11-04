@@ -1,15 +1,13 @@
-# Dependencies
+# dependencies and build output
 node_modules/
-.env
-
-# Production
-build/
 dist/
 
-# IDE
-.vscode/
-.idea/
+# secrets and local state
+.env
+.mysql/
 
-# OS
-.DS_Store
-Thumbs.db
+# logs and test artefacts
+*.log
+*.err
+e2e/out/
+.claude/
