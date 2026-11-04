@@ -1,0 +1,42 @@
+import fs from 'node:fs'; import path from 'node:path'; import { fileURLToPath, pathToFileURL } from 'node:url';
+import { launch, tokenFor, sleep } from '../../e2e/lib.mjs';
+const here = path.dirname(fileURLToPath(import.meta.url)); const OUT = path.join(here, '..', 'screens'); fs.mkdirSync(OUT, { recursive: true });
+const BASE = 'http://127.0.0.1:5191';
+const tok = { admin: await tokenFor('admin@anka.test', 'Admin@123'), teacher: await tokenFor('teacher1@anka.test', 'Teacher@123'), student: await tokenFor('student@anka.test', 'Student@123') };
+const code = (await (await fetch('http://localhost:5000/api/results/public/search?roll_no=27802063')).json()).results[0].verify_code;
+const browser = await launch();
+async function shot(name, role, url, { w = 1360, h = 820, act, wait = 1800, full = false } = {}) {
+  const ctx = await browser.createBrowserContext(); const p = await ctx.newPage(); await p.setViewport({ width: w, height: h, deviceScaleFactor: 1.5 });
+  await p.evaluateOnNewDocument((t) => { try { if (t) localStorage.setItem('stures_token', t); localStorage.setItem('anka_theme', 'light'); localStorage.setItem('anka_seen', '999999'); } catch {} }, tok[role] || null);
+  await p.goto(BASE + url, { waitUntil: 'domcontentloaded' }); await sleep(wait);
+  if (act) await act(p);
+  await p.screenshot({ path: path.join(OUT, name + '.png'), fullPage: full }); await ctx.close(); console.log('ok', name);
+}
+const clickText = (p, sel, t) => p.evaluate((s, x) => [...document.querySelectorAll(s)].find((e) => e.textContent.toLowerCase().includes(x.toLowerCase()))?.click(), sel, t);
+if (!process.argv[2]) await shot('landing', null, '/', { h: 900, wait: 2500 });
+if (!process.argv[2]) await shot('login', null, '/login');
+if (!process.argv[2]) await shot('gpa', null, '/gpa', { h: 900 });
+if (!process.argv[2]) await shot('verify', null, '/verify/' + code);
+if (!process.argv[2]) await shot('algorithms', null, '/algorithms', { h: 900 });
+if (!process.argv[2]) await shot('admin-dashboard', 'admin', '/admin', { wait: 3000, h: 900 });
+if (!process.argv[2]) await shot('admin-results', 'admin', '/admin/results', { wait: 2200 });
+if (!process.argv[2]) await shot('admin-students', 'admin', '/admin/students');
+if (!process.argv[2]) await shot('admin-programs', 'admin', '/admin/programs', { h: 900 });
+if (!process.argv[2]) await shot('admin-mail', 'admin', '/admin/mail', { h: 900 });
+if (!process.argv[2]) await shot('admin-settings', 'admin', '/admin/settings', { h: 900 });
+if (!process.argv[2]) await shot('teacher-marks', 'teacher', '/teacher/marks');
+if (!process.argv[2] || process.argv[2] === 'bp') await shot('teacher-backpapers', 'teacher', '/teacher/marks?mode=back', { wait: 2500 });
+if (!process.argv[2]) await shot('teacher-attendance', 'teacher', '/teacher/attendance');
+if (!process.argv[2]) await shot('classes-timetable', 'teacher', '/classes', { act: (p) => clickText(p, '.seg button', 'Timetable').then(() => sleep(900)) });
+if (!process.argv[2]) await shot('classes-assignments', 'admin', '/classes', { act: (p) => clickText(p, '.seg button', 'Assignments').then(() => sleep(900)) });
+if (!process.argv[2]) await shot('student-dashboard', 'student', '/student', { wait: 3000, h: 900 });
+if (!process.argv[2]) await shot('student-results', 'student', '/student/results', { wait: 2200, act: (p) => p.evaluate(() => document.querySelector('.ticket')?.click()).then(() => sleep(1200)), h: 1000 });
+if (!process.argv[2]) await shot('student-insights', 'student', '/student/insights', { wait: 2500, h: 900 });
+if (!process.argv[2]) await shot('ranking', 'student', '/ranking', { wait: 2500, h: 900 });
+// rendered email
+const p = await browser.newPage(); await p.setViewport({ width: 640, height: 700, deviceScaleFactor: 1.5 });
+const T = (await import('../../backend/utils/emailTemplates.js')).default;
+const inst = { institution_name: '', institution_tagline: '', institution_address: '', app_url: 'http://localhost:5191' };
+const r = T.result(inst, { name: 'Niranjan Katwal', termName: 'Semester 7', examYear: 2026, programName: 'Bachelor of Computer Applications', status: 'pass', gpa: 3.62, grade: 'A-', percentage: 78.4, rank: 2, classSize: 14, division: 'First Division', verifyCode: code, verifyUrl: 'http://localhost:5191/verify/' + code, link: 'http://localhost:5191/student/results' });
+await p.setContent(r.html); await p.screenshot({ path: path.join(OUT, 'email-result.png'), fullPage: true });
+await browser.close();
