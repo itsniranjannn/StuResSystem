@@ -1,0 +1,9 @@
+{
+  "name": "anka-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Browser end-to-end tests for Anka (drives Edge or Chrome via puppeteer-core)",
+  "scripts": { "test": "node ui.mjs" },
+  "devDependencies": { "puppeteer-core": "^23.11.1" }
+}
