@@ -1,34 +1,16 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Home, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { LogoEmblem } from '../components/Logo.jsx';
 
-const NotFound = () => {
+export default function NotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-secondary-50 p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center max-w-md"
-      >
-        <div className="inline-flex items-center justify-center w-20 h-20 bg-red-100 rounded-full mb-6">
-          <AlertCircle className="w-10 h-10 text-red-600" />
-        </div>
-        <h1 className="text-6xl font-bold text-neutral-800 mb-4">404</h1>
-        <h2 className="text-2xl font-semibold text-neutral-700 mb-4">Page Not Found</h2>
-        <p className="text-neutral-600 mb-8">
-          Oops! The page you're looking for doesn't exist or has been moved.
-        </p>
-        <Link
-          to="/dashboard"
-          className="inline-flex items-center gap-2 px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors font-medium"
-        >
-          <Home className="w-5 h-5" />
-          Back to Dashboard
-        </Link>
-      </motion.div>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', textAlign: 'center', padding: 20 }}>
+      <div>
+        <LogoEmblem size={90} />
+        <motion.h1 style={{ fontSize: 'clamp(4rem,14vw,9rem)', lineHeight: 1 }} animate={{ rotate: [-2, 2, -2] }} transition={{ duration: 3, repeat: Infinity }}>404</motion.h1>
+        <p className="serif" style={{ fontSize: '2rem', margin: '10px 0 20px' }}>This page failed the exam.</p>
+        <Link className="btn gold" to="/">Back home</Link>
+      </div>
     </div>
   );
-};
-
-export default NotFound;
+}
