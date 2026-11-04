@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Download, Lock, Save, Upload } from 'lucide-react';
 import { Chip, Empty, Meter, Modal, PageHeader, Select, Seg, Spinner, Switch, termName, useLoad, useToast } from '../../components/ui.jsx';
+import BackPapers from './BackPapers.jsx';
 import { get, post, put, errMsg } from '../../lib/api';
 
 const blank = (v) => v === '' || v == null;
@@ -80,9 +81,9 @@ export default function TeacherMarks() {
     <>
       <PageHeader crumb="Marks" title="Marks entry" sub={mode === 'back' ? 'Record back paper (re-sit) results for students who have not yet cleared this subject.' : 'Type marks directly or import a CSV. Press Enter to move down a column and Ctrl+S to save. Published marks are locked.'}>
         <Seg value={mode} onChange={(m) => setParams({ subject: subjectId, ...(m === 'back' ? { mode: 'back' } : {}) })} label="Exam type" options={[{ value: 'regular', label: 'Regular exam' }, { value: 'back', label: 'Back papers' }]} />
-        <button className="btn paper" onClick={template} disabled={!sub}><Download size={15} /> CSV template</button>
-        <button className="btn paper" onClick={() => setImp({ csv: '' })} disabled={!sub}><Upload size={15} /> Import CSV</button>
-        <button className="btn" onClick={save} disabled={busy || !dirty}><Save size={15} /> {busy ? 'Saving...' : 'Save marks'}</button>
+        {mode === 'regular' && <button className="btn paper" onClick={template} disabled={!sub}><Download size={15} /> CSV template</button>}
+        {mode === 'regular' && <button className="btn paper" onClick={() => setImp({ csv: '' })} disabled={!sub}><Upload size={15} /> Import CSV</button>}
+        {mode === 'regular' && <button className="btn" onClick={save} disabled={busy || !dirty}><Save size={15} /> {busy ? 'Saving...' : 'Save marks'}</button>}
       </PageHeader>
       {mode === 'back' && (
         <>
