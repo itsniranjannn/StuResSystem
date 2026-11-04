@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { CornerDownLeft, Search } from 'lucide-react';
 
 // Ctrl/Cmd + K command palette: jump to any page or run a quick action, fully keyboard driven.
@@ -23,10 +23,10 @@ export default function CommandPalette({ open, onClose, items }) {
     else if (e.key === 'Escape') onClose();
   };
   return (
-    <AnimatePresence>
+    <>
       {open && (
-        <motion.div className="overlay top" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-          <motion.div className="card" style={{ width: 'min(620px,100%)', padding: 8, background: 'var(--surface)' }} initial={{ y: -20, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: -10, opacity: 0 }} role="dialog" aria-label="Command palette">
+        <motion.div className="overlay top" initial={{ opacity: 0 }} animate={{ opacity: 1 }} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+          <motion.div className="card" style={{ width: 'min(620px,100%)', padding: 8, background: 'var(--surface)' }} initial={{ y: -20, scale: 0.97 }} animate={{ y: 0, scale: 1 }} role="dialog" aria-label="Command palette">
             <div className="row" style={{ flexWrap: 'nowrap', padding: '8px 12px', borderBottom: '1px solid var(--line)' }}>
               <Search size={18} color="var(--muted)" />
               <input ref={ref} className="input" style={{ border: 'none', background: 'transparent', boxShadow: 'none' }} placeholder="Search pages and actions" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} aria-label="Search" />
@@ -43,6 +43,6 @@ export default function CommandPalette({ open, onClose, items }) {
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </>
   );
 }
