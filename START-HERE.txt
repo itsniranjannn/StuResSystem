@@ -1,0 +1,37 @@
+ANKA - Student Result Analysis and Ranking System
+==================================================
+
+You need: Node.js 20 or later, and MySQL 8 running on your laptop.
+
+1. Open backend\.env and set DB_PASSWORD to your MySQL root password
+   (leave it empty if root has no password). If your MySQL is not on port 3306,
+   change DB_PORT. Everything else can stay as it is.
+
+2. Double-click  1-install.cmd           (installs packages, needs internet, once)
+
+3. Double-click  2-setup-database.cmd    (creates the database and loads demo data)
+   Alternative: import the ready SQL file yourself:
+       mysql -u root -p < database\anka_schema_and_data.sql
+
+4. Double-click  3-start.cmd             (starts everything, opens http://localhost:5191)
+
+Demo accounts (password in brackets)
+  Administrator  admin@anka.test    (Admin@123)
+  Teacher        teacher1@anka.test (Teacher@123)
+  Student        student@anka.test  (Student@123)
+  Public pages (result search, verify, GPA checker) need no sign-in; try symbol no. 27802063.
+
+Email (optional): put a Gmail address and a 16-character app password in backend\.env
+(EMAIL_USER and EMAIL_APP_PASSWORD). Without them the system works and logs emails as skipped.
+
+Folders
+  backend\        API (Node.js, Express) and database setup
+  frontend\       web app (React, Vite)
+  database\       anka_schema_and_data.sql (all 16 tables with demo data)
+  e2e\            browser tests (optional)
+  Documentation\  project report, proposal and defense slides
+
+Problems
+  "Access denied"        -> wrong DB_PASSWORD in backend\.env
+  "ECONNREFUSED"         -> MySQL is not running, or DB_PORT is wrong
+  Port already in use    -> close other programs using ports 5000 or 5191
