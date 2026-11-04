@@ -28,6 +28,7 @@ export const tokenFor = async (email, password) => (await api('/auth/login', { m
 export async function newPage(browser, { token, theme = 'light', width = 1440, height = 900 } = {}) {
   const ctx = await browser.createBrowserContext(); // isolated storage so pages never share a sign-in
   const page = await ctx.newPage();
+  const closePage = page.close.bind(page); page.close = async (...a) => { await closePage(...a).catch(() => {}); await ctx.close().catch(() => {}); };
   await page.setViewport({ width, height });
   page.problems = [];
   page.on('dialog', (d) => d.accept().catch(() => {}));
