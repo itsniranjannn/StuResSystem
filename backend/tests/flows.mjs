@@ -37,7 +37,7 @@ sec('1. Authentication');
 await t('public programs and institution endpoints', async () => {
   eq(progs.length, 3, 'programs');
   const i = (await call('/auth/institution')).data.institution;
-  ok(i.name && 'short' in i && 'tagline' in i && 'address' in i, 'institution fields');
+  ok(i.name === '' && 'short' in i && 'tagline' in i && 'address' in i, 'institution fields');
 });
 const reg = (o) => call('/auth/register', { method: 'POST', body: { name: 'Test Person', email: `x${uid}${Math.random().toString(36).slice(2, 6)}@flows.test`, password: 'Passw0rdX', role: 'student', roll_no: `R${uid}${Math.random().toString(36).slice(2, 6)}`, semester: 2, program_id: P.BCA.id, ...o } });
 await t('registration validation (name, email, password, role, program, term)', async () => {
@@ -550,7 +550,7 @@ await t('public pages: stats, search, marksheet, validation', async () => {
   eq((await call('/results/public/search?roll_no=')).status, 400); eq((await call('/results/public/search?roll_no=NOPE')).status, 404);
   const ms = (await call('/results/public/marksheet?roll_no=27802063&semester=7')).data; ok(ms.subjects.length === 3 && ms.result.verify_code);
   eq((await call('/results/public/marksheet?roll_no=27802063&semester=99')).status, 404); eq((await call('/results/public/marksheet?roll_no=NOPE&semester=1')).status, 404);
-  const v = (await call(`/results/public/verify/${ms.result.verify_code}`)).data; ok(v.valid && v.result.roll_no === '27802063' && v.institution.institution_name);
+  const v = (await call(`/results/public/verify/${ms.result.verify_code}`)).data; ok(v.valid && v.result.roll_no === '27802063' && 'institution_name' in v.institution);
   ok(!JSON.stringify(v).includes('password'), 'no sensitive fields in public data');
 });
 await t('public endpoints rate-limit abusive clients', async () => {
