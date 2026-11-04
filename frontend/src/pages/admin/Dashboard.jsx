@@ -1,617 +1,168 @@
-// frontend/src/pages/admin/Dashboard.jsx
-import React, { useState, useEffect } from 'react';
-import { 
-    Users, GraduationCap, BookOpen, Award, BarChart3, TrendingUp,
-    Clock, Shield, Calendar, Activity, Target, PieChart,
-    AlertCircle, CheckCircle, Download, Filter, Search,
-    MoreVertical, Eye, Edit, Trash2, RefreshCw, Plus,
-    TrendingDown, TrendingUp as TrendingUpIcon, DollarSign
-} from 'lucide-react';
-import { motion } from 'framer-motion';
-import api from '../../services/api';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { GraduationCap, Users, BookOpen, FileCheck2, Send, UserPlus, Mail, CalendarCheck, ArrowRight, Check, AlertTriangle, Activity } from 'lucide-react';
+import { Chip, Empty, Meter, Seg, Spinner, Tile, termName, useLoad, useToast } from '../../components/ui.jsx';
+import { get, patch, errMsg } from '../../lib/api';
+import { chartTip } from '../student/Home.jsx';
 
-const AdminDashboard = () => {
-    const [stats, setStats] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [recentActivities, setRecentActivities] = useState([]);
-    const [recentStudents, setRecentStudents] = useState([]);
-    const [chartData, setChartData] = useState([]);
-    const [topPerformers, setTopPerformers] = useState([]);
-    const [fetchError, setFetchError] = useState(null);
-    const [activeTab, setActiveTab] = useState('overview');
-    const [timeRange, setTimeRange] = useState('month');
+const PIE = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--amber)', 'var(--violet)', 'var(--sky)', 'var(--good)', 'var(--crimson)', 'var(--muted)'];
+const ago = (d) => { const s = Math.max(1, (Date.now() - new Date(d).getTime()) / 1000); if (s < 60) return 'just now'; if (s < 3600) return `${Math.floor(s / 60)}m ago`; if (s < 86400) return `${Math.floor(s / 3600)}h ago`; return `${Math.floor(s / 86400)}d ago`; };
+const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };
 
-    useEffect(() => {
-        fetchDashboardData();
-        const interval = setInterval(fetchDashboardData, 30000); // Refresh every 30 seconds
-        return () => clearInterval(interval);
-    }, [timeRange]);
+function Clock() {
+  const [t, setT] = useState(new Date());
+  useEffect(() => { const i = setInterval(() => setT(new Date()), 30000); return () => clearInterval(i); }, []);
+  return <span className="mono">{t.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} · {t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>;
+}
 
-    const fetchDashboardData = async () => {
-        try {
-            setLoading(true);
-            setFetchError(null);
-            
-            // Fetch all dashboard data in parallel
-            const [
-                statsResponse,
-                activitiesResponse,
-                studentsResponse,
-                chartResponse,
-                performersResponse
-            ] = await Promise.all([
-                api.get('/admin/dashboard'),
-                api.get('/admin/logs?limit=5'),
-                api.get('/students?page=1&limit=5'),
-                api.get('/admin/chart-data?range=' + timeRange),
-                api.get('/results/rankings?semester=6&limit=5')
-            ]);
-            
-            if (statsResponse.data.success) setStats(statsResponse.data.data);
-            if (activitiesResponse.data.success) setRecentActivities(activitiesResponse.data.data);
-            if (studentsResponse.data.success) setRecentStudents(studentsResponse.data.data.rows || []);
-            if (chartResponse.data.success) setChartData(chartResponse.data.data);
-            if (performersResponse.data.success) setTopPerformers(performersResponse.data.data);
-            
-        } catch (error) {
-            console.error('Failed to fetch dashboard data:', error);
-            if (error.code === 'ERR_NETWORK') {
-                setFetchError('Backend server connection failed. Please ensure server is running on port 5000.');
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
+export default function AdminDashboard() {
+  const toast = useToast();
+  const nav = useNavigate();
+  const [pid, setPid] = useState('');
+  const [metric, setMetric] = useState('avg_gpa');
+  const [hover, setHover] = useState(null);
+  const progs = useLoad(() => get('/admin/programs'), []);
+  const { data, loading } = useLoad(() => get('/admin/dashboard', { program_id: pid || undefined }), [pid]);
+  const teachers = useLoad(() => get('/admin/teachers'), []);
+  const batches = useLoad(() => get('/admin/results/batches', { program_id: pid || undefined }), [pid]);
+  if (loading || !data) return <Spinner />;
+  const { counts: c, perTerm, gradeDist, topSubjects, recent, mail } = data;
+  const list = progs.data?.programs || [];
+  const pending = (teachers.data?.teachers || []).filter((t) => !t.is_active);
+  const drafts = (batches.data?.batches || []).filter((b) => b.published_count < b.students - b.incomplete).slice(0, 4);
+  const series = perTerm.map((t) => ({ term: `T${t.semester}`, avg_gpa: Number(t.avg_gpa), pass_rate: t.students ? Math.round((t.passed / t.students) * 100) : 0, students: t.students }));
+  const spark = (k) => series.map((s) => s[k]);
+  const approve = async (t) => { try { await patch(`/admin/users/${t.user_id}/active`, { is_active: true }); toast(`${t.teacher_name} approved and notified`); teachers.reload(); } catch (e) { toast(errMsg(e), 'error'); } };
+  const total = gradeDist.reduce((a, g) => a + g.count, 0);
+  const sel = hover != null ? gradeDist[hover] : null;
+  const steps = [['Programs and grading rules', list.length > 0, '/admin/programs'], ['Subjects for each term', c.subjects > 0, '/admin/subjects'], ['Teachers approved', c.teachers > 0 && c.pending_teachers === 0, '/admin/teachers'], ['Students registered', c.students > 0, '/admin/students'], ['Results calculated', c.draft_results + c.published_results > 0, '/admin/results'], ['Email connected', mail.configured, '/admin/mail']];
+  const done = steps.filter((s) => s[1]).length;
+  const metricLabel = { avg_gpa: 'Average GPA', pass_rate: 'Pass rate (%)', students: 'Students assessed' }[metric];
 
-    const handleRefresh = () => {
-        fetchDashboardData();
-    };
-
-    const handleExport = () => {
-        // Export functionality
-        console.log('Exporting dashboard data...');
-    };
-
-    if (loading && !stats) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6">
-                <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                        <p className="text-gray-600">Loading dashboard data...</p>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (fetchError) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6">
-                <div className="max-w-4xl mx-auto">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-white rounded-2xl shadow-xl p-8 border border-red-200"
-                    >
-                        <div className="text-center">
-                            <div className="inline-flex items-center justify-center w-20 h-20 bg-red-100 rounded-full mb-6">
-                                <AlertCircle className="h-10 w-10 text-red-600" />
-                            </div>
-                            <h2 className="text-2xl font-bold text-gray-900 mb-3">Connection Error</h2>
-                            <p className="text-gray-600 mb-6">{fetchError}</p>
-                            <div className="space-y-4">
-                                <button
-                                    onClick={fetchDashboardData}
-                                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
-                                >
-                                    <RefreshCw className="inline-block mr-2 h-4 w-4" />
-                                    Retry Connection
-                                </button>
-                                <p className="text-sm text-gray-500">
-                                    Make sure backend server is running: <code className="bg-gray-100 px-2 py-1 rounded">npm run dev</code>
-                                </p>
-                            </div>
-                        </div>
-                    </motion.div>
-                </div>
-            </div>
-        );
-    }
-
-    // Stats cards data
-    const statCards = [
-        {
-            title: 'Total Students',
-            value: stats?.counts?.students || 0,
-            icon: <Users className="h-6 w-6" />,
-            color: 'from-blue-500 to-cyan-500',
-            change: '+12%',
-            trend: 'up',
-            description: 'Active students this semester'
-        },
-        {
-            title: 'Teachers',
-            value: stats?.counts?.teachers || 0,
-            icon: <GraduationCap className="h-6 w-6" />,
-            color: 'from-purple-500 to-pink-500',
-            change: '+5%',
-            trend: 'up',
-            description: 'Faculty members'
-        },
-        {
-            title: 'Subjects',
-            value: stats?.counts?.subjects || 0,
-            icon: <BookOpen className="h-6 w-6" />,
-            color: 'from-emerald-500 to-teal-500',
-            change: '0%',
-            trend: 'neutral',
-            description: 'Courses available'
-        },
-        {
-            title: 'Results Published',
-            value: stats?.counts?.results || 0,
-            icon: <Award className="h-6 w-6" />,
-            color: 'from-amber-500 to-orange-500',
-            change: '+45',
-            trend: 'up',
-            description: 'This semester'
-        },
-        {
-            title: 'Pending Marks',
-            value: stats?.counts?.pendingMarks || 18,
-            icon: <Clock className="h-6 w-6" />,
-            color: 'from-rose-500 to-red-500',
-            change: '-3',
-            trend: 'down',
-            description: 'Require attention'
-        },
-        {
-            title: 'Avg GPA',
-            value: '3.45',
-            icon: <Target className="h-6 w-6" />,
-            color: 'from-indigo-500 to-violet-500',
-            change: '+0.15',
-            trend: 'up',
-            description: 'Semester average'
-        }
-    ];
-
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-4 md:p-6">
-            {/* Header */}
-            <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-8"
-            >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Admin Dashboard</h1>
-                        <p className="text-gray-600 mt-2">Welcome back! Here's your system overview</p>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Search..."
-                                className="pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-                        </div>
-                        
-                        <select
-                            value={timeRange}
-                            onChange={(e) => setTimeRange(e.target.value)}
-                            className="px-4 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            <option value="week">This Week</option>
-                            <option value="month">This Month</option>
-                            <option value="quarter">This Quarter</option>
-                            <option value="year">This Year</option>
-                        </select>
-                        
-                        <button
-                            onClick={handleRefresh}
-                            className="p-2 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
-                        >
-                            <RefreshCw className="h-5 w-5 text-gray-600" />
-                        </button>
-                        
-                        <button
-                            onClick={handleExport}
-                            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center"
-                        >
-                            <Download className="h-4 w-4 mr-2" />
-                            Export
-                        </button>
-                    </div>
-                </div>
-                
-                {/* Quick Stats */}
-                <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                    {statCards.map((stat, index) => (
-                        <motion.div
-                            key={index}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                            className="bg-white rounded-xl shadow-sm p-4 border border-gray-200 hover:shadow-md transition-shadow"
-                        >
-                            <div className="flex items-center justify-between mb-3">
-                                <div className={`p-2 rounded-lg bg-gradient-to-br ${stat.color} bg-opacity-10`}>
-                                    <div className={`text-white bg-gradient-to-br ${stat.color} p-2 rounded-lg`}>
-                                        {stat.icon}
-                                    </div>
-                                </div>
-                                <div className={`flex items-center text-sm font-medium ${
-                                    stat.trend === 'up' ? 'text-green-600' : 
-                                    stat.trend === 'down' ? 'text-red-600' : 'text-gray-600'
-                                }`}>
-                                    {stat.trend === 'up' && <TrendingUpIcon className="h-4 w-4 mr-1" />}
-                                    {stat.trend === 'down' && <TrendingDown className="h-4 w-4 mr-1" />}
-                                    {stat.change}
-                                </div>
-                            </div>
-                            <h3 className="text-2xl font-bold text-gray-900">{stat.value}</h3>
-                            <p className="text-sm font-medium text-gray-700">{stat.title}</p>
-                            <p className="text-xs text-gray-500 mt-1">{stat.description}</p>
-                        </motion.div>
-                    ))}
-                </div>
-            </motion.div>
-
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                {/* Left Column - Charts */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Performance Chart */}
-                    <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200"
-                    >
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-900">Performance Overview</h3>
-                                <p className="text-sm text-gray-600">Student performance trends</p>
-                            </div>
-                            <div className="flex space-x-2">
-                                <button className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded-lg">Monthly</button>
-                                <button className="px-3 py-1 text-sm bg-gray-100 text-gray-600 rounded-lg">Quarterly</button>
-                                <button className="px-3 py-1 text-sm bg-gray-100 text-gray-600 rounded-lg">Yearly</button>
-                            </div>
-                        </div>
-                        
-                        {/* Chart Container */}
-                        <div className="h-80 flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl">
-                            <div className="text-center">
-                                <BarChart3 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                                <p className="text-gray-600">Performance chart would display here</p>
-                                <p className="text-sm text-gray-500 mt-2">Real-time data from database</p>
-                            </div>
-                        </div>
-                    </motion.div>
-
-                    {/* Top Performers */}
-                    <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200"
-                    >
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-900">Top Performers</h3>
-                                <p className="text-sm text-gray-600">Students with highest GPA</p>
-                            </div>
-                            <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                                View All →
-                            </button>
-                        </div>
-                        
-                        <div className="space-y-4">
-                            {topPerformers.length > 0 ? topPerformers.map((student, index) => (
-                                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors">
-                                    <div className="flex items-center space-x-4">
-                                        <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                                            index === 0 ? 'bg-yellow-100 text-yellow-600' :
-                                            index === 1 ? 'bg-gray-100 text-gray-600' :
-                                            index === 2 ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
-                                        }`}>
-                                            <span className="font-bold">{index + 1}</span>
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-gray-900">{student.student_name}</p>
-                                            <p className="text-sm text-gray-600">Roll: {student.roll_no} • Sem: {student.semester}</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-xl font-bold text-gray-900">{student.gpa || '3.8'}</span>
-                                            <span className="text-sm text-gray-500">GPA</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500">Rank #{student.rank || index + 1}</p>
-                                    </div>
-                                </div>
-                            )) : (
-                                <div className="text-center py-8">
-                                    <Award className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                                    <p className="text-gray-600">No performance data available</p>
-                                    <p className="text-sm text-gray-500 mt-1">Calculate results to see rankings</p>
-                                </div>
-                            )}
-                        </div>
-                    </motion.div>
-                </div>
-
-                {/* Right Column - Sidebar */}
-                <div className="space-y-6">
-                    {/* Recent Activities */}
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200"
-                    >
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-900">Recent Activities</h3>
-                                <p className="text-sm text-gray-600">System logs and updates</p>
-                            </div>
-                            <Activity className="h-5 w-5 text-blue-600" />
-                        </div>
-                        
-                        <div className="space-y-4">
-                            {recentActivities.length > 0 ? recentActivities.map((activity, index) => (
-                                <div key={index} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                                    <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                        activity.action?.includes('login') ? 'bg-green-100 text-green-600' :
-                                        activity.action?.includes('create') ? 'bg-blue-100 text-blue-600' :
-                                        activity.action?.includes('update') ? 'bg-amber-100 text-amber-600' :
-                                        activity.action?.includes('delete') ? 'bg-red-100 text-red-600' :
-                                        'bg-gray-100 text-gray-600'
-                                    }`}>
-                                        {activity.action?.includes('login') ? <Shield className="h-4 w-4" /> :
-                                         activity.action?.includes('create') ? <Plus className="h-4 w-4" /> :
-                                         activity.action?.includes('update') ? <Edit className="h-4 w-4" /> :
-                                         activity.action?.includes('delete') ? <Trash2 className="h-4 w-4" /> :
-                                         <Activity className="h-4 w-4" />}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 truncate">{activity.action || 'System Activity'}</p>
-                                        <p className="text-xs text-gray-500">{activity.user_role || 'System'} • {new Date(activity.created_at).toLocaleTimeString()}</p>
-                                    </div>
-                                </div>
-                            )) : (
-                                <div className="text-center py-4">
-                                    <Clock className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                                    <p className="text-gray-600 text-sm">No recent activities</p>
-                                </div>
-                            )}
-                            
-                            <button className="w-full py-2 text-center text-blue-600 hover:text-blue-700 text-sm font-medium border border-gray-200 rounded-lg hover:bg-blue-50 transition-colors">
-                                View All Activities
-                            </button>
-                        </div>
-                    </motion.div>
-
-                    {/* Recent Students */}
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.1 }}
-                        className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200"
-                    >
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-900">Recent Students</h3>
-                                <p className="text-sm text-gray-600">Newly registered students</p>
-                            </div>
-                            <Users className="h-5 w-5 text-purple-600" />
-                        </div>
-                        
-                        <div className="space-y-4">
-                            {recentStudents.length > 0 ? recentStudents.map((student, index) => (
-                                <div key={index} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                                    <div className="flex items-center space-x-3">
-                                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                                            <span className="text-white font-bold text-sm">
-                                                {student.student_name?.charAt(0) || 'S'}
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-gray-900">{student.student_name || 'Student Name'}</p>
-                                            <p className="text-sm text-gray-600">Roll: {student.roll_no || 'N/A'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                                            Sem {student.semester || 'N/A'}
-                                        </span>
-                                        <p className="text-xs text-gray-500 mt-1">{student.program || 'Program'}</p>
-                                    </div>
-                                </div>
-                            )) : (
-                                <div className="text-center py-4">
-                                    <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                                    <p className="text-gray-600 text-sm">No student data available</p>
-                                    <p className="text-xs text-gray-500 mt-1">Students will appear here when registered</p>
-                                </div>
-                            )}
-                            
-                            <button className="w-full py-2 text-center text-purple-600 hover:text-purple-700 text-sm font-medium border border-gray-200 rounded-lg hover:bg-purple-50 transition-colors">
-                                Manage All Students
-                            </button>
-                        </div>
-                    </motion.div>
-
-                    {/* Quick Actions */}
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-lg p-6 text-white"
-                    >
-                        <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-                        <div className="grid grid-cols-2 gap-3">
-                            <button className="p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-center">
-                                <Plus className="h-5 w-5 mx-auto mb-1" />
-                                <span className="text-xs font-medium">Add Student</span>
-                            </button>
-                            <button className="p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-center">
-                                <Award className="h-5 w-5 mx-auto mb-1" />
-                                <span className="text-xs font-medium">Publish Results</span>
-                            </button>
-                            <button className="p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-center">
-                                <BarChart3 className="h-5 w-5 mx-auto mb-1" />
-                                <span className="text-xs font-medium">Generate Report</span>
-                            </button>
-                            <button className="p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-center">
-                                <Shield className="h-5 w-5 mx-auto mb-1" />
-                                <span className="text-xs font-medium">System Settings</span>
-                            </button>
-                        </div>
-                    </motion.div>
-                </div>
-            </div>
-
-            {/* Bottom Section - Stats Grid */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-            >
-                {/* Grade Distribution */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-6">Grade Distribution</h3>
-                    <div className="space-y-4">
-                        {[
-                            { grade: 'A+', count: 12, color: 'bg-green-500', percentage: '15%' },
-                            { grade: 'A', count: 28, color: 'bg-green-400', percentage: '35%' },
-                            { grade: 'B+', count: 18, color: 'bg-blue-500', percentage: '22.5%' },
-                            { grade: 'B', count: 12, color: 'bg-blue-400', percentage: '15%' },
-                            { grade: 'C+', count: 6, color: 'bg-yellow-500', percentage: '7.5%' },
-                            { grade: 'C', count: 4, color: 'bg-yellow-400', percentage: '5%' },
-                        ].map((item, index) => (
-                            <div key={index} className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
-                                    <span className="text-sm font-medium text-gray-700">{item.grade}</span>
-                                </div>
-                                <div className="flex items-center space-x-4">
-                                    <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                        <div 
-                                            className={`h-full ${item.color} transition-all duration-500`}
-                                            style={{ width: item.percentage }}
-                                        ></div>
-                                    </div>
-                                    <span className="text-sm font-semibold text-gray-900">{item.count}</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Attendance Overview */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-semibold text-gray-900">Attendance Overview</h3>
-                        <Calendar className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div className="space-y-4">
-                        <div className="text-center">
-                            <div className="text-3xl font-bold text-gray-900">92%</div>
-                            <p className="text-sm text-gray-600">Average Attendance</p>
-                        </div>
-                        <div className="grid grid-cols-3 gap-3">
-                            <div className="text-center p-3 bg-green-50 rounded-xl">
-                                <div className="text-xl font-bold text-green-600">95%</div>
-                                <p className="text-xs text-green-700">Present</p>
-                            </div>
-                            <div className="text-center p-3 bg-yellow-50 rounded-xl">
-                                <div className="text-xl font-bold text-yellow-600">3%</div>
-                                <p className="text-xs text-yellow-700">Late</p>
-                            </div>
-                            <div className="text-center p-3 bg-red-50 rounded-xl">
-                                <div className="text-xl font-bold text-red-600">2%</div>
-                                <p className="text-xs text-red-700">Absent</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* System Status */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-semibold text-gray-900">System Status</h3>
-                        <Shield className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">Database</span>
-                            <div className="flex items-center">
-                                <div className="h-2 w-2 rounded-full bg-green-500 mr-2"></div>
-                                <span className="text-sm font-medium text-green-600">Connected</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">API Server</span>
-                            <div className="flex items-center">
-                                <div className="h-2 w-2 rounded-full bg-green-500 mr-2"></div>
-                                <span className="text-sm font-medium text-green-600">Running</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">Email Service</span>
-                            <div className="flex items-center">
-                                <div className="h-2 w-2 rounded-full bg-green-500 mr-2"></div>
-                                <span className="text-sm font-medium text-green-600">Active</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">Storage</span>
-                            <div className="flex items-center">
-                                <div className="h-2 w-2 rounded-full bg-amber-500 mr-2"></div>
-                                <span className="text-sm font-medium text-amber-600">78% Used</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Upcoming Deadlines */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-semibold text-gray-900">Upcoming Deadlines</h3>
-                        <Clock className="h-5 w-5 text-amber-600" />
-                    </div>
-                    <div className="space-y-3">
-                        {[
-                            { task: 'Result Publication', date: 'Jan 25', priority: 'high' },
-                            { task: 'Marks Entry', date: 'Jan 22', priority: 'medium' },
-                            { task: 'Attendance Update', date: 'Jan 20', priority: 'low' },
-                            { task: 'Report Generation', date: 'Jan 28', priority: 'medium' },
-                        ].map((item, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-900">{item.task}</p>
-                                    <p className="text-xs text-gray-500">{item.date}</p>
-                                </div>
-                                <span className={`text-xs px-2 py-1 rounded-full ${
-                                    item.priority === 'high' ? 'bg-red-100 text-red-700' :
-                                    item.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
-                                    'bg-green-100 text-green-700'
-                                }`}>
-                                    {item.priority}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </motion.div>
+  return (
+    <>
+      <motion.div className="card glow" style={{ marginBottom: 16, padding: 26 }} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="row between" style={{ alignItems: 'flex-start' }}>
+          <div>
+            <div className="lbl"><Clock /></div>
+            <h1 className="display" style={{ fontSize: 'clamp(1.5rem,2.6vw,2.2rem)', margin: '8px 0 6px' }}>{greet()}, <span className="sun-text">admin.</span></h1>
+            <p className="muted" style={{ maxWidth: 520 }}>{drafts.length ? `${drafts.length} result batch${drafts.length > 1 ? 'es are' : ' is'} ready to review.` : 'All results are published.'} {pending.length ? `${pending.length} teacher${pending.length > 1 ? 's are' : ' is'} waiting for approval.` : 'No approvals pending.'}</p>
+          </div>
+          <div className="row">
+            <button className="btn" onClick={() => nav('/admin/results')}><Send size={16} /> Publish results</button>
+            <button className="btn paper" onClick={() => nav('/admin/students')}><UserPlus size={16} /> Add student</button>
+            <button className="btn paper" onClick={() => nav('/admin/mail')}><Mail size={16} /> Mail center</button>
+          </div>
         </div>
-    );
-};
+        <div className="row" style={{ marginTop: 18, gap: 8 }}>
+          <span className="lbl" style={{ marginRight: 4 }}>Viewing</span>
+          {[{ id: '', name: 'All programs' }, ...list.map((p) => ({ id: String(p.id), name: p.code }))].map((p) => (
+            <motion.button key={p.id} whileTap={{ scale: 0.94 }} className={`chip ${String(pid) === p.id ? 'brand' : ''}`} style={{ cursor: 'pointer', border: 'none', padding: '6px 14px', fontSize: '0.78rem', outline: String(pid) === p.id ? '1px solid var(--brand)' : 'none' }} onClick={() => setPid(p.id)} aria-pressed={String(pid) === p.id}>{p.name}</motion.button>
+          ))}
+        </div>
+      </motion.div>
 
-export default AdminDashboard;
+      <div className="bento">
+        <div className="span-3"><Tile label="Students" value={c.students} icon={GraduationCap} color="var(--s1)" spark={spark('students')} hint="across assessed terms" /></div>
+        <div className="span-3"><Tile label="Teachers" value={c.teachers} icon={Users} color="var(--s2)" delay={0.05} hint={c.pending_teachers ? `${c.pending_teachers} awaiting approval` : 'all approved'} /></div>
+        <div className="span-3"><Tile label="Subjects" value={c.subjects} icon={BookOpen} color="var(--s3)" delay={0.1} hint="in the syllabus" /></div>
+        <div className="span-3"><Tile label="Published results" value={c.published_results} icon={FileCheck2} color="var(--s4)" delay={0.15} hint={`${c.draft_results} drafts`} spark={spark('avg_gpa')} /></div>
+
+        <div className="span-8 card">
+          <div className="row between" style={{ marginBottom: 6 }}>
+            <h3 style={{ margin: 0 }}>{metricLabel} by term</h3>
+            <Seg value={metric} onChange={setMetric} label="Metric" options={[{ value: 'avg_gpa', label: 'GPA' }, { value: 'pass_rate', label: 'Pass rate' }, { value: 'students', label: 'Students' }]} />
+          </div>
+          <p className="sub" style={{ margin: '0 0 10px' }}>Hover to inspect a term. Switch the metric above.</p>
+          <ResponsiveContainer width="100%" height={270}>
+            <AreaChart data={series} margin={{ left: -14, right: 6, top: 8 }}>
+              <defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--s1)" stopOpacity={0.5} /><stop offset="100%" stopColor="var(--s1)" stopOpacity={0.02} /></linearGradient></defs>
+              <CartesianGrid stroke="var(--line)" vertical={false} /><XAxis dataKey="term" stroke="var(--muted)" tickLine={false} axisLine={false} /><YAxis stroke="var(--muted)" tickLine={false} axisLine={false} domain={metric === 'avg_gpa' ? [0, 4] : metric === 'pass_rate' ? [0, 100] : [0, 'auto']} />
+              <Tooltip contentStyle={chartTip} cursor={{ stroke: 'var(--line-strong)' }} />
+              <Area key={metric} type="monotone" dataKey={metric} stroke="var(--s1)" strokeWidth={3} fill="url(#ga)" dot={{ r: 4, fill: 'var(--s1)', stroke: 'var(--surface)', strokeWidth: 2 }} activeDot={{ r: 7 }} animationDuration={900} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="span-4 card">
+          <div className="row between"><h3 style={{ margin: 0 }}>Needs attention</h3><Chip kind={pending.length + drafts.length + c.mail_failed ? 'warn' : 'pass'}>{pending.length + drafts.length + c.mail_failed || 'clear'}</Chip></div>
+          <div className="stack" style={{ marginTop: 14 }}>
+            <AnimatePresence initial={false}>
+              {pending.map((t) => (
+                <motion.div key={`t${t.id}`} layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="row between" style={{ flexWrap: 'nowrap' }}>
+                  <div style={{ minWidth: 0 }}><b style={{ display: 'block' }}>{t.teacher_name}</b><span className="muted small">wants teacher access</span></div>
+                  <button className="btn good sm" onClick={() => approve(t)}><Check size={14} /> Approve</button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            {drafts.map((b) => (
+              <Link key={`${b.program_id}-${b.semester}-${b.exam_year}`} to="/admin/results" className="row between" style={{ textDecoration: 'none', color: 'inherit', flexWrap: 'nowrap' }}>
+                <div><b style={{ display: 'block' }}>{b.program} {termName(b, b.semester)} · {b.exam_year}</b><span className="muted small">{b.students - b.incomplete} results in draft</span></div><ArrowRight size={16} color="var(--brand)" />
+              </Link>
+            ))}
+            {c.mail_failed > 0 && <Link to="/admin/mail" className="row" style={{ textDecoration: 'none', color: 'var(--bad)' }}><AlertTriangle size={16} /> {c.mail_failed} email(s) failed to send</Link>}
+            {!pending.length && !drafts.length && !c.mail_failed && <Empty title="All clear">Nothing needs your attention right now.</Empty>}
+          </div>
+        </div>
+
+        <div className="span-4 card">
+          <h3>Grade distribution</h3>
+          <div style={{ position: 'relative' }}>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={gradeDist} dataKey="count" nameKey="grade" innerRadius={62} outerRadius={92} paddingAngle={2} stroke="var(--surface)" strokeWidth={2} onMouseLeave={() => setHover(null)} animationDuration={900}>
+                  {gradeDist.map((_, i) => <Cell key={i} fill={PIE[i % PIE.length]} opacity={hover == null || hover === i ? 1 : 0.28} style={{ cursor: 'pointer', transition: 'opacity .2s' }} onMouseEnter={() => setHover(i)} />)}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', textAlign: 'center' }}>
+              <div><div className="display" style={{ fontSize: '1.7rem' }}>{sel ? sel.count : total}</div><div className="muted small">{sel ? `grade ${sel.grade} · ${Math.round((sel.count / total) * 100)}%` : 'results'}</div></div>
+            </div>
+          </div>
+          <div className="row" style={{ gap: 6 }}>{gradeDist.map((g, i) => <span key={g.grade} className="chip" style={{ opacity: hover == null || hover === i ? 1 : 0.4, cursor: 'pointer' }} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}><i style={{ width: 8, height: 8, borderRadius: 4, background: PIE[i % PIE.length] }} />{g.grade}</span>)}</div>
+        </div>
+
+        <div className="span-4 card">
+          <h3>Pass and fail by term</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={perTerm.map((t) => ({ term: `T${t.semester}`, Passed: Number(t.passed), Failed: Number(t.failed) }))} margin={{ left: -18 }}>
+              <CartesianGrid stroke="var(--line)" vertical={false} /><XAxis dataKey="term" stroke="var(--muted)" tickLine={false} axisLine={false} /><YAxis allowDecimals={false} stroke="var(--muted)" tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={chartTip} cursor={{ fill: 'var(--surface-2)' }} />
+              <Bar dataKey="Passed" stackId="a" fill="var(--s2)" /><Bar dataKey="Failed" stackId="a" fill="var(--s4)" radius={[5, 5, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="span-4 card">
+          <div className="row between"><h3 style={{ margin: 0 }}>Getting started</h3><Chip kind={done === steps.length ? 'pass' : 'warn'}>{done}/{steps.length}</Chip></div>
+          <div style={{ margin: '12px 0' }}><Meter value={done} max={steps.length} /></div>
+          <ul className="steps small">{steps.map(([t, ok, to]) => <li key={t} className={ok ? 'done' : ''}><Link to={to} style={{ textDecoration: 'none', color: 'inherit', fontWeight: 650, flex: 1 }}>{t}</Link></li>)}</ul>
+        </div>
+
+        <div className="span-6 card">
+          <div className="row between"><h3 style={{ margin: 0 }}>Strongest subjects</h3><Chip kind="info"><CalendarCheck size={13} /> attendance {data.avg_attendance ?? '-'}%</Chip></div>
+          <div className="stack" style={{ marginTop: 14 }}>
+            {topSubjects.map((s, i) => (
+              <div key={s.code}><div className="row between small"><span><span className="mono muted">{s.code}</span> {s.name}</span><b className="mono">{s.avg_percent}%</b></div><Meter value={s.avg_percent} color={PIE[i % 4]} /></div>
+            ))}
+          </div>
+        </div>
+
+        <div className="span-6 card">
+          <div className="row between"><h3 style={{ margin: 0 }}>Live activity</h3><Link to="/admin/audit" className="small">Full log</Link></div>
+          <div className="feed" style={{ marginTop: 14 }}>
+            {recent.slice(0, 6).map((r, i) => (
+              <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
+                <div className="row between small"><span><Chip kind="info">{r.action.replace(/_/g, ' ').toLowerCase()}</Chip> <span className="muted">{r.user_name}</span></span><span className="mono muted">{ago(r.created_at)}</span></div>
+                <div className="muted small" style={{ marginTop: 2 }}>{r.detail}</div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <span className="sr"><Activity /></span>
+    </>
+  );
+}
